@@ -1,0 +1,342 @@
+= Mistral Vibe — arc42 Architecture Documentation
+:toc:
+:toclevels: 2
+
+[abstract]
+Synthesized from the Q3 branch of `../QUESTION_TREE.adoc`. Each
+section cites the Q-ID it was derived from. Items marked
+`(open — see Q-X.Y)` are unanswered in `../OPEN_QUESTIONS.adoc` and
+have *not* been filled with assumptions.
+
+== 1. Introduction and goals (Q3.1)
+
+Mistral Vibe is Mistral AI's open-source command-line coding
+assistant (`README.md:24`). It exposes a conversational interface to
+a codebase through a Textual TUI, a non-interactive `-p` mode, and an
+Agent Client Protocol (ACP) server. The codebase targets Python ≥
+3.12 (`pyproject.toml:6`) and is officially supported on Linux and
+macOS (`README.md:25-26`).
+
+`(open — see Q1.5)` Quantitative product goals and KPIs are not
+declared in this repository.
+
+== 2. Architecture constraints (Q3.2)
+
+[cols="1,3", options="header"]
+|===
+| Constraint | Source
+
+| Language ≥ Python 3.12 | `pyproject.toml:6`
+| `uv` is the only sanctioned package manager for development
+  | `AGENTS.md:11`
+| Pyright strict gates CI | `AGENTS.md:46`
+| `# type: ignore` and `# noqa` are forbidden | `AGENTS.md:49`
+| Ruff lint + format is mandatory after every code change
+  | `AGENTS.md:14`
+| No relative imports (`ban-relative-imports = "all"`)
+  | `AGENTS.md:47`
+| `agent-client-protocol==0.9.0` (exact pin) | `pyproject.toml`
+| `textual==8.2.4` (exact pin) | `pyproject.toml`
+| `mistralai==2.4.4` (exact pin) | `pyproject.toml`
+| MCP ≥ 1.14.0 | `pyproject.toml`
+| Public API surfaced via explicit `__all__` in `__init__.py`
+  | `AGENTS.md:21`
+| Pydantic v2 is the only sanctioned data-validation layer
+  | `AGENTS.md:51-58`, `vibe/core/config/_settings.py:498`
+| asyncio is the orchestration runtime; HTTP via `httpx.AsyncClient`
+  | `AGENTS.md:64-69`
+| No `git commit --amend`, no force push | `AGENTS.md:72-74`
+|===
+
+== 3. System scope and context (Q3.3)
+
+=== 3.1 Business context
+
+The actors are listed in the Q2 specification (Visitor, Developer,
+Programmatic Caller, IDE Client). Outbound integrations:
+
+[cols="1,2", options="header"]
+|===
+| External system | Used for
+
+| Mistral AI Platform — chat completions | `vibe/core/llm/`
+| Mistral AI Platform — Transcribe | `vibe/core/transcribe/`
+| Mistral AI Platform — TTS | `vibe/core/tts/`
+| Mistral AI Platform — datalake events | `vibe/core/telemetry/`
+| Mistral AI Platform — Workflows (Nuage / Vibe Code) |
+  `vibe/core/nuage/`, `vibe/core/teleport/`
+| MCP servers (stdio / HTTP / streamable-HTTP) |
+  `vibe/core/tools/mcp/`,
+  `vibe/core/config/_settings.py:227-340`
+| Arbitrary OpenAI-compatible providers
+  | `vibe/core/config/_settings.py:172-218`
+|===
+
+=== 3.2 Technical context
+
+* Inbound: terminal stdio (TUI) or framed JSON-RPC over stdio (ACP).
+* Outbound: HTTPS (`httpx.AsyncClient`), MCP wire transports.
+* Local filesystem: `$VIBE_HOME` (default `~/.vibe`) for config,
+  credentials, session logs, trusted-folder list, command history.
+
+== 4. Solution strategy (Q3.4)
+
+* *Hexagonal-style ports*: abstract interfaces use the `_port.py`
+  suffix (`AGENTS.md:24`).
+* *Pydantic-first data*: external data is validated with `BaseModel`
+  / `pydantic-settings` (`AGENTS.md:51-58`,
+  `vibe/core/config/_settings.py:498`).
+* *Stream-by-default*: tool and model events are
+  `AsyncGenerator[Event, None]` (`AGENTS.md:67`).
+* *asyncio orchestration*: structured with `asyncio.create_task` and
+  queues, not blanket `gather` (`AGENTS.md:64-66`).
+* *Single Mistral provider default, OpenAI-style fallback*: every
+  third-party provider is treated as an OpenAI-style endpoint
+  (`vibe/core/config/_settings.py:172-218`).
+* *Single source of truth for config*: `VibeConfig` overlays
+  defaults → `config.toml` → `VIBE_*` environment variables
+  (`vibe/core/config/_settings.py:648-651`).
+
+`(open — see Q3.4)` Recorded rationale for the foundational choices
+(Textual, `uv`, ACP 0.9.0 specifically) is missing — see ADR backlog
+in `ADRs.adoc`.
+
+== 5. Building block view (Q3.5)
+
+=== 5.1 Level 1 — packages
+
+[cols="1,3", options="header"]
+|===
+| Package | Role
+
+| `vibe/core/`
+| Engine. Contains the agent loop
+  (`vibe/core/agent_loop.py`, 1716 lines), LLM backends
+  (`vibe/core/llm/backend/`), tool registry (`vibe/core/tools/`),
+  configuration (`vibe/core/config/`), session log
+  (`vibe/core/session/`), hooks (`vibe/core/hooks/`), skills
+  (`vibe/core/skills/`), agents (`vibe/core/agents/`), telemetry,
+  tracing, transcribe, tts, nuage, teleport, rewind, auth,
+  trusted-folders.
+
+| `vibe/cli/`
+| Textual TUI app, slash commands
+  (`vibe/cli/commands.py:46-180`), autocompletion, history, plan-
+  offer, voice manager, narrator, turn-summary, update notifier.
+
+| `vibe/acp/`
+| ACP entrypoint and adapters (`vibe/acp/acp_agent_loop.py`,
+  `vibe/acp/session.py`), ACP-side tool wrappers
+  (`vibe/acp/tools/`).
+
+| `vibe/setup/`
+| Onboarding (`vibe/setup/onboarding/`), browser-based auth
+  (`vibe/setup/auth/`), trust dialog
+  (`vibe/setup/trusted_folders/`).
+|===
+
+=== 5.2 Level 2 — engine internals (`vibe/core/`)
+
+* `agent_loop.py` orchestrates: input → tool registry → LLM call →
+  permission check → tool execution → event stream → log append.
+* `tools/base.py` defines `BaseTool`, `BaseToolConfig`, `ToolPermission`,
+  `ToolError`, `ToolPermissionError`.
+* `tools/manager.py` aggregates builtin tools, custom tools, MCP
+  tools, and connector tools into the active set.
+* `tools/permissions.py` defines permission scopes
+  (`COMMAND_PATTERN`, `OUTSIDE_DIRECTORY`, `FILE_PATTERN`,
+  `URL_PATTERN`) and the approval data model.
+* `agents/manager.py` resolves the active `AgentProfile` and applies
+  its overrides on top of `VibeConfig`.
+* `config/_settings.py` defines all configuration models and the
+  `VibeConfig` `BaseSettings` aggregate.
+* `session/session_logger.py` writes `meta.json` + `messages.jsonl`
+  in a session directory under `session_logging.save_dir`.
+* `hooks/` discovers and executes post-turn hooks.
+* `llm/backend/` contains the active set of provider backends
+  (`mistral`, `anthropic` — the latter marked legacy).
+
+== 6. Runtime view (Q3.6)
+
+=== 6.1 Conversation turn
+
+. Surface (CLI / ACP) receives input.
+. `AgentLoop` composes the system prompt
+  (`vibe/core/config/_settings.py:725-734`).
+. `ToolManager` produces the available tool list.
+. LLM backend is called with messages + tools (streamed).
+. For every tool call in the response:
+.. permission resolved via `ToolPermission` and active
+   `AgentProfile`;
+.. if `ASK`, the surface prompts the user (or, on ACP, asks the
+   client);
+.. on approval, the tool runs and streams events back;
+.. result is appended to the conversation.
+. Steps 4–5 loop until the assistant produces a final message with
+  no tool calls.
+. Post-turn hooks run (`vibe/core/hooks/`).
+. Messages and metadata are appended to the session log.
+
+Auto-compaction fires when input-token count crosses the active
+model's `auto_compact_threshold`
+(`vibe/core/config/_settings.py:374`, default 200 000).
+
+=== 6.2 Startup
+
+* `vibe/cli/entrypoint.py:166` parses arguments, resolves
+  `--workdir`, applies `--trust`, then dispatches to `run_cli`.
+* `check_and_resolve_trusted_folder`
+  (`vibe/cli/entrypoint.py:124-153`) gates the trust dialog
+  (UC-006).
+* `init_harness_files_manager("user", "project")`
+  (`vibe/cli/entrypoint.py:158`) registers project- and user-scope
+  override paths.
+* `AgentLoop` may defer MCP and connector discovery onto a daemon
+  thread (`vibe/core/agent_loop.py:234,348-356`,
+  `defer_heavy_init`).
+
+=== 6.3 Teleport
+
+`/teleport` packages the working tree, conversation, and todos and
+ships them through the Nuage workflow client
+(`vibe/core/nuage/client.py`,
+`vibe/core/agent_loop.py:162` `TeleportError`).
+
+=== 6.4 Voice and TTS
+
+* Voice input streams 16 kHz PCM to the Transcribe model with a
+  500 ms target latency
+  (`vibe/core/config/_settings.py:380-388`).
+* TTS streams the assistant's reply through the TTS model
+  (`vibe/core/tts/`).
+
+== 7. Deployment view (Q3.7)
+
+* *Local install*: `uv tool install mistral-vibe`,
+  `pip install mistral-vibe`, or the install script
+  (`README.md:36-58`).
+* *Process model*: single Python process for CLI; ACP server runs
+  as a separate process spawned by the IDE
+  (`vibe/acp/entrypoint.py`).
+* *CI*: `action.yml` runs `vibe -p` in a GitHub Actions runner.
+* *Packaging*: PyInstaller spec for redistributable binaries
+  (`vibe-acp.spec`, `pyinstaller/`). `flake.nix` provides a Nix dev
+  shell.
+
+`(open — see Q4.8)` Whether PyInstaller binaries are an officially
+shipped artifact, and the practical Windows / ARM64 support contract,
+are not declared.
+
+== 8. Crosscutting concepts (Q3.8)
+
+[cols="1,3", options="header"]
+|===
+| Concept | Implementation
+
+| Configuration | `VibeConfig`
+  (`vibe/core/config/_settings.py:498`), pydantic-settings, layering
+  defaults → `config.toml` → `VIBE_*` env vars.
+
+| Trust | `trusted_folders_manager`
+  (`vibe/core/trusted_folders.py`); decides whether project-context
+  files are loaded.
+
+| Permissions | `ToolPermission` (`ALWAYS` / `ASK` / `NEVER`)
+  declared per tool (`vibe/core/tools/base.py`); the active agent
+  profile may override
+  (`vibe/core/agents/models.py:49-95`).
+
+| Telemetry | `vibe/core/telemetry/` posts events to
+  `https://api.mistral.ai/v1/datalake/events` when
+  `enable_telemetry=True`
+  (`vibe/core/config/_settings.py:519`).
+
+| Tracing | OpenTelemetry, opt-in via `enable_otel`
+  (`vibe/core/config/_settings.py:531-533`).
+
+| Logging | stdlib `logging` with `StructuredLogFormatter`, written
+  to `~/.vibe/logs/vibe.log` (`AGENTS.md`, `vibe/core/logger.py`).
+  Pass variables as `%s` positional args (`AGENTS.md`).
+
+| I/O safety | `read_safe` / `read_safe_async` / `decode_safe`
+  handle encoding fallbacks (`vibe/core/utils/io.py`, `AGENTS.md`).
+
+| Auth | API key in `$VIBE_HOME/.env` for default flow; browser
+  sign-in (PKCE-style with RSA-OAEP + AES-GCM payload) for the
+  Mistral provider (`vibe/core/auth/crypto.py`,
+  `vibe/setup/auth/`).
+
+| Errors | Module-local exception hierarchies; always chain with
+  `raise NewError(...) from e`; rich exceptions expose `_fmt()`
+  (`AGENTS.md`).
+|===
+
+== 9. Architectural decisions (Q3.9)
+
+A standalone ADR backlog is published as `ADRs.adoc` next to this
+document. The repository has no existing ADR directory; the eight
+decisions captured there are inferred from code with no
+team-recorded Context / Decision / Status / Consequences notes.
+
+`(open — see Q3.9)` ADR-level rationale is missing in the
+repository.
+
+== 10. Quality requirements (Q4)
+
+Captured in the Q4 branch (ISO/IEC 25010) of
+`../QUESTION_TREE.adoc`. Concrete budgets and targets remain open:
+
+* `(open — see Q4.2)` cold-start time, time-to-first-token,
+  acceptable tool-call latency, memory ceiling, rate-limit retry
+  behaviour.
+* `(open — see Q4.4)` usability targets.
+* `(open — see Q4.5)` recovery objectives.
+* `(open — see Q4.7)` agent-loop size budget.
+
+== 11. Risks and technical debt (Q5)
+
+=== 11.1 Known
+
+* *Concentration risk*: `vibe/core/agent_loop.py` is 1716 lines and
+  is the de facto god module (Q5.1).
+* *Pinned dependencies on young protocols*:
+  `agent-client-protocol==0.9.0`, `textual==8.2.4`,
+  `mistralai==2.4.4` (Q5.2).
+* *Three explicit "legacy" markers* (Q5.3):
+  - `vibe/core/config/_settings.py:185` — legacy Mistral provider
+    without backend;
+  - `vibe/cli/update_notifier/adapters/filesystem_update_cache_repository.py`
+    — legacy migration logic;
+  - `vibe/core/llm/backend/anthropic.py` — referenced as legacy.
+* *Committed TODOs*:
+  `vibe/core/config/_settings.py:530` (OTEL public-feature gate),
+  `vibe/core/autocompletion/completers.py:330` (root-directory
+  assumption) (Q5.4).
+* *`keyring` dependency vs `.env` storage*: `keyring>=25.6.0` is
+  declared but no `keyring.set_password` is reachable from the
+  onboarding path; API keys are written to `~/.vibe/.env` in plain
+  text (Q5.5).
+* *Hidden roadmap flags*: `vibe_code_*`, `enable_otel`,
+  `otel_endpoint`, `enable_experimental_hooks` are excluded from
+  public serialisation (`vibe/core/config/_settings.py:524-535`)
+  (Q5.7).
+
+=== 11.2 Open
+
+* `(open — see Q5.3)` Removal plan / deadline for each legacy code
+  path.
+* `(open — see Q5.5)` Whether `.env` storage is deliberate UX or
+  `keyring` is planned to be activated.
+* `(open — see Q5.6)` Whether telemetry payloads have been audited
+  for PII / secret leakage.
+* `(open — see Q5.7)` When each hidden flag becomes a public
+  feature.
+* `(open — see Q5.8)` Log rotation policy (`LOG_BACKUP_COUNT` is not
+  exposed alongside `LOG_MAX_BYTES`); session-log disk cap;
+  behaviour when the datalake endpoint is unreachable.
+
+== 12. Glossary (Q3.12)
+
+A partial glossary lives in `PRD.adoc` §9. The provenance of
+codename-style terms (Voxtral, Codestral, Nuage, leanstral, Vibe
+Code, teleport) remains `(open — see Q3.12)`.

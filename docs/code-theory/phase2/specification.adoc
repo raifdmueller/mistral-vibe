@@ -1,0 +1,197 @@
+= Mistral Vibe — Specification
+:toc:
+:toclevels: 2
+
+[abstract]
+Synthesized from the Q2 branch of `../QUESTION_TREE.adoc`. Holds the
+behavioural contract of Mistral Vibe: actors, use cases, CLI spec,
+ACP spec, data model, and Gherkin acceptance criteria. The
+authoritative Cockburn use-case set already lives in
+`../../use_cases/`; this document references it rather than
+duplicating it.
+
+== 1. Actors (Q2.1)
+
+[cols="1,1,3", options="header"]
+|===
+| Actor | Kind | Entry point
+
+| Visitor
+| Human, unauthenticated
+| First run or `--setup` (`vibe/cli/entrypoint.py:92`)
+
+| Developer
+| Human, authenticated
+| `vibe [PROMPT]` (`vibe/cli/entrypoint.py:35-40`)
+
+| Programmatic Caller
+| Automation
+| `vibe -p` (`vibe/cli/entrypoint.py:41-49`)
+
+| IDE Client
+| External system (Zed, JetBrains, Neovim, …)
+| `vibe-acp` over stdio (`vibe/acp/entrypoint.py`)
+
+| Mistral AI Platform
+| External system, outbound
+| `vibe/core/llm/`, `vibe/core/transcribe/`, `vibe/core/tts/`,
+  `vibe/core/nuage/`, `vibe/core/telemetry/`
+
+| MCP Server
+| External system, outbound
+| `vibe/core/tools/mcp/`,
+  `vibe/core/config/_settings.py:227-340`
+|===
+
+== 2. Use case catalog (Q2.2)
+
+The Cockburn-style use case catalog is `../../use_cases.puml` plus
+the 14 specification files `../../use_cases/UC-001-…` through
+`UC-014-…`. Each spec records preconditions, main success scenario,
+alternative flows, postconditions, and business rules BR-001..BR-058.
+
+[cols="1,3,1", options="header"]
+|===
+| ID | Name | Primary actor
+
+| UC-001 | Complete First-Time Setup | Visitor
+| UC-002 | Converse with the Coding Assistant | Developer
+| UC-003 | Manage Conversation Context | Developer
+| UC-004 | Resume a Previous Session | Developer
+| UC-005 | Configure the Active Session | Developer
+| UC-006 | Authorize a Workspace Folder | Developer
+| UC-007 | Extend Capabilities via MCP and Connectors | Developer
+| UC-008 | Use and Discover Skills | Developer
+| UC-009 | Interact by Voice | Developer
+| UC-010 | Teleport Session to Vibe Code | Developer
+| UC-011 | Schedule Recurring Prompts | Developer
+| UC-012 | Review Privacy and Data Retention | Developer
+| UC-013 | Execute Prompt Non-Interactively | Programmatic Caller
+| UC-014 | Drive Vibe from an IDE via ACP | IDE Client
+|===
+
+== 3. CLI specification (Q2.3)
+
+Defined by the argparse spec at `vibe/cli/entrypoint.py:19-122`.
+
+=== 3.1 Synopsis
+
+----
+vibe [PROMPT] [options]
+----
+
+=== 3.2 Options
+
+[cols="1,2,3", options="header"]
+|===
+| Flag | Value | Effect
+
+| `PROMPT` | string (positional, optional)
+| Initial user message for an interactive session.
+| `-p, --prompt` | string (optional value)
+| Programmatic mode: send the prompt, auto-approve all tools, write
+  the final answer to stdout, exit.
+| `--max-turns` | integer
+| Cap on assistant turns (programmatic only).
+| `--max-price` | decimal (USD)
+| Cap on total session cost (programmatic only). Session aborts when
+  exceeded.
+| `--enabled-tools` | name / glob / `re:`-regex (repeatable)
+| Restrict the active tool set. In programmatic mode this also
+  disables every other tool.
+| `--output` | `text` \| `json` \| `streaming`
+| Output format for programmatic mode.
+| `--agent` | profile name
+| Override the active agent profile.
+| `--setup` | flag
+| Run onboarding (API key) and exit.
+| `--workdir` | path
+| `chdir` into this directory before doing anything else.
+| `--trust` | flag
+| Trust the working directory for this invocation only — not
+  persisted to `trusted-folders.toml`.
+| `--teleport` | flag (hidden — `argparse.SUPPRESS`)
+| Internal feature flag.
+| `-c, --continue` | flag
+| Resume the most recent saved session for the current working
+  directory.
+| `--resume [SESSION_ID]` | flag with optional value
+| Open the resume picker, or resume the named session directly.
+| `-v, --version` | flag
+| Print the package version.
+|===
+
+=== 3.3 Environment variables
+
+`VIBE_HOME` :: Override the Vibe home directory (default `~/.vibe`).
+`LOG_LEVEL` :: `DEBUG` \| `INFO` \| `WARNING` (default) \| `ERROR`
+\| `CRITICAL`. Logs land in `$VIBE_HOME/logs/vibe.log`.
+`LOG_MAX_BYTES` :: Max size of `vibe.log` before rotation (default
+`10485760`).
+`VIBE_*` :: Override any `VibeConfig` field (for example
+`VIBE_ACTIVE_MODEL=local`;
+`vibe/core/config/_settings.py:648-651`).
+
+=== 3.4 Exit status
+
+`0` :: Successful completion.
+non-zero :: Budget exceeded (`--max-turns`, `--max-price`),
+authentication error, unrecoverable model error, invalid arguments,
+or non-existent `--workdir`. (See UC-013.)
+
+== 4. ACP specification (Q2.4)
+
+Defined by the handler methods in `vibe/acp/acp_agent_loop.py` and
+`vibe/acp/session.py`. Session lifecycle methods: `initialize`,
+`new_session`, `load_session`, `fork_session`, `resume_session`,
+`close_session`, `list_sessions`. Execution methods: `prompt`,
+`cancel`. Configuration methods: `set_session_mode`,
+`set_session_model`, `set_config_option`. Tool surface is the
+ACP-side wrapper set under `vibe/acp/tools/builtins/`.
+
+`(open — see Q3.4)` The protocol version contract — what range of
+ACP versions is supported beyond the pinned `0.9.0`
+(`pyproject.toml`) — is not declared.
+
+== 5. Data and entity model (Q2.5)
+
+The recovered entity model is `../../entity_model.md`. Authoritative
+sources are the Pydantic models at:
+
+* `vibe/core/config/_settings.py:172-499` —
+  `ProviderConfig`, `ModelConfig`, `TranscribeProviderConfig`,
+  `TranscribeModelConfig`, `TTSProviderConfig`, `TTSModelConfig`,
+  `_MCPBase` / `MCPHttp` / `MCPStreamableHttp` / `MCPStdio`,
+  `ConnectorConfig`, `VibeConfig`.
+* `vibe/core/types.py:146-160` — `SessionMetadata`.
+* `vibe/core/types.py:215-260` — `LLMMessage`, `ToolCall`,
+  `FunctionCall`.
+* `vibe/core/agents/models.py:49-95` — `AgentProfile`, `AgentSafety`,
+  `AgentType`, `BuiltinAgentName`.
+* `vibe/core/skills/models.py:9-65` — `SkillMetadata`, `SkillInfo`.
+* `vibe/core/hooks/models.py:26-46` — `HookConfig`, `HookInvocation`.
+* `vibe/core/tools/builtins/todo.py:34-50` — `TodoItem`, `TodoStatus`,
+  `TodoPriority`.
+
+== 6. Acceptance criteria
+
+Gherkin features live in `acceptance.feature` next to this document.
+Each scenario references a use case ID for traceability (see Phase 2
+"baseline tests" guidance in the source workflow).
+
+`(open — see Q2.6)` Whether any pytest modules under `tests/` are
+formally considered acceptance tests (rather than unit / integration
+tests) is not declared.
+
+== 7. Cross-cutting business rules (Q2.7)
+
+The 58 business rules BR-001..BR-058 are stated in
+`../../use_cases/UC-*.md`. They cover permissions, tool truncation,
+auto-compaction, session persistence, trust scoping, hook execution,
+skill validation, model selection, programmatic-mode defaults, and
+ACP-tool parity with interactive mode.
+
+`(open — see Q2.7)` Whether telemetry redaction, model cost caps,
+supported model matrix, retention duration of session logs, and
+"what counts as a destructive tool" are formal rules with versioned
+approvals or implicit conventions cannot be derived from code.

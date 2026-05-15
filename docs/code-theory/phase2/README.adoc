@@ -1,0 +1,52 @@
+= Phase 2 — Synthesis
+:toc:
+
+[abstract]
+Phase 2 of the Socratic Code-Theory Recovery workflow
+(https://llm-coding.github.io/Semantic-Anchors/brownfield/#phase-0-5-socratic-code-theory-recovery)
+synthesises documentation from the answered branches of
+`../QUESTION_TREE.adoc`. Because the team has not answered the
+`[OPEN]` questions yet, every claim here is either evidence-based
+(with a `file:line` citation) or marked `(open — see Q-X.Y)`. No
+assumptions have been filled in.
+
+== Artifacts
+
+[cols="1,3", options="header"]
+|===
+| File | Anchor branch
+
+| `PRD.adoc`
+| Q1 — problem, users, surfaces, success metrics
+| `specification.adoc`
+| Q2 — actors, use case catalog, CLI spec, ACP spec, data model
+| `acceptance.feature`
+| Q2 — Gherkin acceptance criteria, traced to UC IDs
+| `arc42.adoc`
+| Q3 — full 12-chapter architecture description
+| `ADRs.adoc`
+| Q3.9 — eight reverse-engineered ADRs with Pugh matrices
+|===
+
+== How `(team answer)` works
+
+The workflow asks Phase 2 to mark team-provided information with
+`(team answer)`. Until the team responds, this document uses
+`(open — see Q-X.Y)` instead. When answers arrive, every
+`(open — …)` marker should be replaced by `(team answer)` plus the
+text the team provided.
+
+== Baseline tests
+
+The workflow recommends a baseline test suite tied to use case IDs.
+The Gherkin scenarios in `acceptance.feature` are that backbone; the
+mapping table (UC → existing pytest modules in `tests/`) is
+`(open — see Q2.6)` until the team confirms which modules they
+consider acceptance tests.
+
+== Status of the open questions
+
+The 25 open questions in `../OPEN_QUESTIONS.adoc` remain unanswered
+in this revision. They are carried verbatim into the Phase 2
+artifacts via `(open — see Q-X.Y)` markers wherever a claim would
+otherwise have required an assumption.
