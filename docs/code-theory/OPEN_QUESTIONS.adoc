@@ -1,0 +1,177 @@
+= Open Questions for the Team
+:toc:
+:toclevels: 2
+
+[abstract]
+The `[OPEN]` leaves from `QUESTION_TREE.adoc`, copied verbatim and
+grouped by *Ask role*. Each question is phrased so that 1–3 sentences
+will close it. Answers feed back into Phase 2 (synthesis of PRD,
+specification, arc42, ADRs) of the Socratic Code-Theory Recovery
+workflow.
+
+== For the Product Owner
+
+=== Q1.4 — Why was this built (vs. using an existing tool)?
+
+The code shows Mistral Vibe targets the same niche as Claude Code,
+OpenAI Codex CLI, and Cursor CLI, but the repo does not record the
+strategic reason Mistral invested in a first-party CLI rather than
+partnering with or extending an existing one.
+
+=== Q1.5 — What success metrics or business goals drive the product?
+
+Telemetry events are collected (`enable_telemetry` defaults to true
+in `vibe/core/config/_settings.py:519`) but the code does not declare
+which KPIs they feed — DAU, sessions per user, time to first turn,
+retention, model spend per session — or what targets define "shipped
+successfully".
+
+=== Q1.6 — Who are the non-user stakeholders?
+
+The repo identifies "Mistral AI" as the author but not the internal
+stakeholders: who owns product direction, who owns operations, who
+owns the Mistral API capacity Vibe consumes, who owns the Vibe Code
+teleport endpoint.
+
+=== Q2.7 — Are there cross-cutting business rules not yet captured?
+
+Whether telemetry redaction policy, model cost caps, supported model
+matrix, retention duration of session logs, and "what counts as a
+destructive tool" are formal rules (with versioned approvals) or
+implicit conventions in code.
+
+=== Q3.12 — Glossary: codenames vs. product names
+
+Whether terms like "Vibe Code", "Voxtral", "Codestral", "leanstral",
+"Nuage", and "teleport" are public product names, internal codenames,
+or both — and which spelling is user-facing.
+
+=== Q4.1 — Which features are priority 1 for release?
+
+Which features are "must work" vs. "nice to have" — for example,
+`/voice` is described as experimental in its slash-command definition
+(`vibe/cli/commands.py`).
+
+=== Q4.3 — What is the official model and OS support matrix?
+
+Whether the Anthropic backend (`vibe/core/llm/backend/anthropic.py`)
+is supported, deprecated, or transitional; the validated Mistral model
+set; the support window for older Python versions if any; the
+Windows / ARM64 support contract in practice.
+
+=== Q4.4 — What are the usability targets?
+
+Documented usability targets — time to install, time to first
+successful turn, supported screen sizes, contrast / accessibility
+commitments.
+
+=== Q5.6 — Has telemetry payload content been audited?
+
+Telemetry events such as `slash_command_used` and `tool_call_finished`
+could carry argument fragments. Whether a redaction / audit policy
+exists.
+
+=== Q5.7 — When do hidden flags become public features?
+
+`vibe_code_*`, `enable_otel`, `otel_endpoint`, and
+`enable_experimental_hooks` are excluded from public serialization
+(`vibe/core/config/_settings.py:524-535`). When is each intended to
+become public, and what gates the decision?
+
+== For the Architect
+
+=== Q3.4 — Why these foundational technology choices?
+
+A written record of why Textual was chosen for the TUI (vs.
+prompt-toolkit, raw curses), why `uv` was mandated for development,
+why ACP 0.9.0 specifically.
+
+=== Q3.9 — Where are the ADRs?
+
+There is no ADR directory in the repo. We need at least Context /
+Decision / Status / Consequences notes for: Pydantic v2 +
+pydantic-settings as the configuration layer; Textual pinned to 8.2.4;
+ACP 0.9.0 over LSP / custom JSON-RPC; JSONL + JSON for session
+persistence; hexagonal `_port.py` convention without a DI framework;
+single Mistral provider default with OpenAI-style fallback; asyncio as
+orchestration runtime; opt-out telemetry default.
+
+=== Q4.2 — What are the performance targets?
+
+Targets for cold-start time, time-to-first-token, acceptable tool-call
+latency, memory ceiling on long sessions, and acceptable retry
+behavior on Mistral API rate limits.
+
+=== Q4.7 — What is the size budget for the agent loop?
+
+`vibe/core/agent_loop.py` is 1716 lines and is the de facto god
+module. What is the target for keeping it bounded, and is there a
+planned decomposition?
+
+=== Q5.3 — Removal plan for legacy code paths?
+
+Three explicit "legacy" markers exist (the un-backended Mistral
+provider, the update-cache adapter, the Anthropic LLM backend). A plan
+/ deadline for removing each path.
+
+=== Q5.5 — Why `.env` instead of OS keyring?
+
+API keys live in `~/.vibe/.env` in plain text. `keyring>=25.6.0` is a
+declared dependency but no `keyring.set_password` call appears in the
+onboarding path. Is `.env` the deliberate UX choice, or is `keyring`
+planned to be activated?
+
+== For Operations
+
+=== Q4.2 — Performance targets (shared with Architect)
+
+See above.
+
+=== Q4.5 — Recovery objectives
+
+Documented behavior under disk full, log rotation failure, MCP server
+crash mid-call, or partial JSONL writes.
+
+=== Q4.8 — Are PyInstaller binaries officially shipped?
+
+`pyinstaller/` and `vibe-acp.spec` exist. Are the resulting binaries
+official artifacts, an internal-only build, or experimental?
+
+=== Q5.8 — Logging and telemetry runtime policy
+
+Log rotation for `vibe.log` (only `LOG_MAX_BYTES` is exposed —
+behaviour when limit is hit?), default cap on session-log disk usage,
+and behaviour when the Mistral datalake endpoint is unreachable for
+telemetry.
+
+== For the Developer Team
+
+=== Q2.6 — Are any tests considered "acceptance tests"?
+
+There are no `.feature` files. Behavior is asserted by ~250 pytest
+modules under `tests/`. Are any of these considered acceptance tests
+(rather than unit/integration), and is that distinction documented?
+
+=== Q3.12 — Glossary (shared with Product Owner)
+
+See above.
+
+=== Q5.3 — Legacy code (shared with Architect)
+
+See above.
+
+== For Security
+
+=== Q4.6 — What is the threat model?
+
+In particular: handling of prompt-injection from MCP-tool outputs and
+webfetch results, the policy for storing API keys in `.env` versus the
+OS keyring, and the policy for telemetry payload content.
+
+=== Q5.5 — `.env` versus keyring (shared with Architect)
+
+See above.
+
+=== Q5.6 — Telemetry payload audit (shared with Product Owner)
+
+See above.
