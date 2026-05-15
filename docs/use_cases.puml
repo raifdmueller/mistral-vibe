@@ -1,0 +1,56 @@
+@startuml Use Cases Overview
+left to right direction
+
+actor "Developer" as developer
+actor "Editor/IDE" as editor
+actor "LLM Provider" as llm
+actor "MCP Server" as mcp
+actor "Vibe Code Service" as nuage
+
+rectangle "Mistral Vibe" {
+    usecase "UC-001\nConfigure Vibe with API Key" as UC001
+    usecase "UC-002\nTrust a Working Directory" as UC002
+    usecase "UC-003\nHold an Interactive Coding Conversation" as UC003
+    usecase "UC-004\nApprove or Deny a Tool Invocation" as UC004
+    usecase "UC-005\nSwitch Active Agent Profile" as UC005
+    usecase "UC-006\nSelect Active Model" as UC006
+    usecase "UC-007\nRun a Programmatic One-Shot Prompt" as UC007
+    usecase "UC-008\nResume a Previous Session" as UC008
+    usecase "UC-009\nRewind the Conversation" as UC009
+    usecase "UC-010\nCompact Conversation History" as UC010
+    usecase "UC-011\nInvoke a User Skill" as UC011
+    usecase "UC-012\nUse MCP Server Tools" as UC012
+    usecase "UC-013\nAuthor a Custom Agent Profile" as UC013
+    usecase "UC-014\nDictate Input by Voice" as UC014
+    usecase "UC-015\nSchedule a Recurring Prompt" as UC015
+    usecase "UC-016\nUse Vibe From an Editor via ACP" as UC016
+    usecase "UC-017\nTeleport a Session to Vibe Code" as UC017
+}
+
+developer --> UC001
+developer --> UC002
+developer --> UC003
+developer --> UC004
+developer --> UC005
+developer --> UC006
+developer --> UC007
+developer --> UC008
+developer --> UC009
+developer --> UC010
+developer --> UC011
+developer --> UC012
+developer --> UC013
+developer --> UC014
+developer --> UC015
+developer --> UC017
+
+editor --> UC016
+
+UC003 --> llm
+UC007 --> llm
+UC016 --> llm
+
+UC012 --> mcp
+UC017 --> nuage
+
+@enduml
