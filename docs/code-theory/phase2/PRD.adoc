@@ -1,0 +1,150 @@
+= Mistral Vibe — Product Requirements Document
+:toc:
+:toclevels: 2
+
+[abstract]
+Synthesized from the Q1 branch of `../QUESTION_TREE.adoc`. Every
+claim references the Q-ID it was derived from. Items marked
+`(open — see Q-X.Y)` could not be derived from code alone and remain
+unanswered in `../OPEN_QUESTIONS.adoc`; they are *not* filled in with
+assumptions.
+
+== 1. Product summary
+
+Mistral Vibe is an open-source command-line coding assistant powered
+by Mistral's models. It provides a conversational interface to a
+codebase: a developer types natural-language requests in a terminal
+and the assistant uses a built-in tool set (file read/write, shell,
+grep, web fetch, web search, todo, task) to explore and modify the
+project (Q1.1).
+
+== 2. Strategic motivation
+
+`(open — see Q1.4)` The strategic reason for building a first-party
+CLI rather than partnering with or extending an existing one is not
+recorded in the repository.
+
+== 3. Success metrics
+
+`(open — see Q1.5)` Telemetry events are collected by default
+(`vibe/core/config/_settings.py:519`) but the repository does not
+declare which product KPIs they feed nor what targets define
+"shipped successfully".
+
+== 4. Users and stakeholders
+
+=== 4.1 Primary users (Q1.2)
+
+* *Developers using a UNIX terminal* — Linux and macOS officially
+  supported; Windows works but is unsupported (`README.md:25-26`).
+  The product is classified `Intended Audience :: Developers`
+  (`pyproject.toml:18`).
+
+=== 4.2 Secondary users (Q1.2, Q1.3)
+
+* *Automation / CI* — invoked through the programmatic mode
+  (`vibe -p`, `vibe/cli/entrypoint.py:41-49`) or via the bundled
+  GitHub Action (`action.yml`).
+* *IDE users* — drive the assistant indirectly through an Agent
+  Client Protocol client (Zed, JetBrains AI Assistant, Neovim
+  avante.nvim; `docs/acp-setup.md`).
+
+=== 4.3 Non-user stakeholders
+
+`(open — see Q1.6)` The repository identifies "Mistral AI" as the
+author (`pyproject.toml:8`) but not the internal stakeholders for
+product direction, operations, Mistral API capacity, or the Vibe Code
+teleport endpoint.
+
+== 5. Product surfaces (Q1.3)
+
+[cols="1,3", options="header"]
+|===
+| Surface | Entry point
+
+| Interactive TUI | `vibe [PROMPT]` (`vibe/cli/entrypoint.py:35-40`)
+| Non-interactive single-shot | `vibe -p`
+  (`vibe/cli/entrypoint.py:41-49`)
+| Agent Client Protocol server | `vibe-acp` over stdio
+  (`vibe/acp/entrypoint.py`)
+| GitHub Action | `action.yml` wrapping `vibe -p` in a runner
+|===
+
+== 6. Feature scope
+
+The user-visible feature scope is captured as 14 use cases in
+`../../use_cases/UC-001`–`UC-014` and the use-case diagram
+`../../use_cases.puml`. The Q2 branch links each use case to the
+files that implement it.
+
+`(open — see Q4.1)` Priority of features for release (which are
+"must work" vs. "nice to have"; for example `/voice` is marked
+experimental in `vibe/cli/commands.py`) is not declared in the
+repository.
+
+== 7. Support matrix
+
+[cols="1,3", options="header"]
+|===
+| Dimension | Stated support
+
+| Python | ≥ 3.12 (`pyproject.toml:6`)
+| OS — Linux | Officially supported (`README.md:26`)
+| OS — macOS | Officially supported (`README.md:26`)
+| OS — Windows | Works, unsupported (`README.md:25-26`)
+| LLM providers | Mistral + any OpenAI-style API
+  (`vibe/core/config/_settings.py:172-218`)
+| IDE clients | Any ACP-speaking client (`docs/acp-setup.md`)
+| MCP servers | stdio, http, streamable-http
+  (`vibe/core/config/_settings.py:307-321`)
+|===
+
+`(open — see Q4.3)` Whether the Anthropic LLM backend
+(`vibe/core/llm/backend/anthropic.py`) is supported, deprecated, or
+transitional is not declared. The validated Mistral model set, the
+Python EOL plan, and the ARM64 support contract are also undeclared.
+
+== 8. Non-goals
+
+`(open — see Q1.5, Q4.1)` Explicit non-goals are not declared in the
+repository.
+
+== 9. Glossary (partial — see Q3.12)
+
+`Session` :: A single persisted conversation
+(`vibe/core/types.py:146-160`).
+`Agent profile` :: A bundle of behaviour overrides selecting tools
+and safety class (`vibe/core/agents/models.py:49`).
+`Skill` :: A reusable Markdown prompt invoked through the slash menu
+(`vibe/core/skills/models.py:9`).
+`Tool` :: A callable surface exposed to the model
+(`vibe/core/tools/base.py`).
+`Hook` :: A shell command run after every assistant turn
+(`vibe/core/hooks/models.py:26`).
+`Trusted folder` :: A directory whose agent-behavior files are
+allowed to influence the system prompt
+(`vibe/core/trusted_folders.py`).
+`Teleport` :: Handoff of a local session to the Vibe Code workflow
+service (`vibe/core/teleport/`, `/teleport` command in
+`vibe/cli/commands.py`).
+`Subagent` :: An agent profile invocable only via the `task` tool
+(`vibe/core/agents/models.py:34`).
+
+`(open — see Q3.12)` Whether terms like "Vibe Code", "Voxtral",
+"Codestral", "leanstral", "Nuage", and "teleport" are public product
+names, internal codenames, or both is not recorded.
+
+== 10. Data and privacy
+
+* Telemetry is opt-out (`enable_telemetry: bool = True`,
+  `vibe/core/config/_settings.py:519`).
+* Session logging is opt-out
+  (`vibe/core/config/_settings.py:556`).
+* Local data lives in the Vibe home directory (default `~/.vibe`,
+  override via `VIBE_HOME`; `vibe/cli/entrypoint.py:23-30`).
+
+`(open — see Q5.6)` Whether telemetry payloads have been audited
+for PII / secret leakage is undocumented.
+
+`(open — see Q1.5)` Retention duration of session logs and
+telemetry on the remote side is not declared in this repository.

@@ -1,0 +1,347 @@
+= Mistral Vibe — Architectural Decision Records (reverse-engineered)
+:toc:
+:toclevels: 2
+
+[abstract]
+Eight decisions inferred from code under Q3.9 of
+`../QUESTION_TREE.adoc`. The repository contains no ADR directory:
+every "Decision" here was reconstructed from imports, pins, and
+conventions. For each ADR the *Context* and *Decision* are derivable
+from code; *Consequences* are partially derivable (the code reveals
+what already happened) but the trade-off the team accepted is
+*Status: Inferred — needs team confirmation*. Listed alternatives are
+candidates the team could have considered; the Pugh matrices show
+only the "what we can read from the repo" cells. Cells that require
+team input are explicitly `(open)` — they are *not* filled with
+assumptions.
+
+Pugh-matrix legend: `+` better than baseline, `0` similar to baseline,
+`−` worse than baseline, `?` `(open)`. The baseline is always the
+*chosen* option in column 1.
+
+[NOTE]
+====
+The decision *status* is "Accepted (inferred)" for every ADR in this
+backlog: the code is shipping with the choice in place. The status
+*becomes* "Accepted (confirmed)" only after the corresponding team
+answer in `../OPEN_QUESTIONS.adoc` Q3.9 is recorded.
+====
+
+== ADR-001 — Pydantic v2 + pydantic-settings as the configuration layer
+
+*Context.* The application needs a typed, validated, layered
+configuration model that can be sourced from defaults, a TOML file,
+and environment variables (`vibe/core/config/_settings.py:498`).
+External data — including provider responses, MCP server
+descriptors, and SKILL.md frontmatter — also needs validation
+(`AGENTS.md:51-58`).
+
+*Decision.* Use Pydantic v2 (`pydantic>=2.12.4`,
+`pyproject.toml`) and `pydantic-settings` (`pydantic-settings>=2.12.0`,
+`pyproject.toml`) for every typed data boundary.
+
+*Status.* Accepted (inferred).
+
+*Consequences (visible in code).*
+
+* `model_validate`, `field_validator`, `model_validator(mode="before")`
+  are mandatory; ad-hoc `getattr` walks are forbidden
+  (`AGENTS.md:51-58`).
+* Discriminated unions are used for MCP transports
+  (`vibe/core/config/_settings.py:307-321`).
+* Kebab-case TOML keys are mapped through `validation_alias`
+  (`vibe/core/skills/models.py:35-44`).
+* The cost of breaking changes between Pydantic minor versions is
+  borne by this project on every upgrade.
+
+*Consequences (open — see Q3.9).* Whether maintenance burden under
+Pydantic-major upgrades has been quantified; whether a fallback layer
+was considered.
+
+*Pugh matrix.*
+
+[cols="2,1,1,1,1", options="header"]
+|===
+| Criterion | Pydantic v2 + pydantic-settings (chosen) | attrs +
+manual validation | dataclasses + custom validator | dynaconf
+
+| Type-checker integration | 0 | + | 0 | −
+| TOML / env layering out of the box | 0 | − | − | +
+| Validation depth | 0 | − | − | 0
+| Discriminated union support | 0 | − | − | −
+| Maturity of v2 API in this codebase | 0 | + | + | 0
+| Team familiarity | ? | ? | ? | ?
+| Long-term maintenance cost | ? | ? | ? | ?
+|===
+
+== ADR-002 — Textual as the TUI framework (pinned to 8.2.4)
+
+*Context.* The interactive surface is a terminal application with
+streaming output, slash-command menus, modal dialogs, autocompletion,
+keybindings, and accessibility hooks
+(`vibe/cli/textual_ui/app.py`).
+
+*Decision.* Use Textual at the exact version `textual==8.2.4`
+(`pyproject.toml`) with `textual-speedups>=0.2.1`.
+
+*Status.* Accepted (inferred).
+
+*Consequences (visible in code).*
+
+* `vim_keybindings` (`vibe/core/config/_settings.py:500`),
+  the recording indicator
+  (`vibe/cli/textual_ui/recording/`), the external editor (`vibe/cli/textual_ui/external_editor.py`),
+  and the slash-command palette
+  (`vibe/cli/commands.py:46-180`) are implemented against Textual.
+* Snapshot tests use `pytest-textual-snapshot`
+  (`AGENTS.md` Tests section).
+* Exact pin means each Textual upgrade is a manual operation.
+
+*Consequences (open — see Q3.4).* The trade-off recorded by the team
+(why Textual rather than prompt-toolkit or raw curses) is not in the
+repository.
+
+*Pugh matrix.*
+
+[cols="2,1,1,1", options="header"]
+|===
+| Criterion | Textual 8.2.4 (chosen) | prompt-toolkit | curses
+
+| Widget library | 0 | − | −
+| CSS-style theming | 0 | − | −
+| Async event loop integration | 0 | 0 | −
+| Snapshot testing support | 0 | − | −
+| Cross-platform rendering | 0 | + | −
+| Maturity / breaking-change cadence | ? | + | +
+| Team familiarity | ? | ? | ?
+|===
+
+== ADR-003 — Agent Client Protocol 0.9.0 as the IDE-integration boundary
+
+*Context.* IDE clients (Zed, JetBrains AI Assistant, Neovim
+avante.nvim) need to drive Vibe as an agent backend
+(`docs/acp-setup.md`).
+
+*Decision.* Implement the Agent Client Protocol at the pinned
+version `agent-client-protocol==0.9.0` (`pyproject.toml`); the ACP
+server is the `vibe-acp` entry point (`vibe/acp/entrypoint.py`).
+
+*Status.* Accepted (inferred).
+
+*Consequences (visible in code).*
+
+* ACP-side tool wrappers must mirror core tools for parity
+  (`vibe/acp/tools/`).
+* Session methods (`initialize`, `new_session`, `prompt`, `cancel`,
+  etc.) are dictated by the protocol contract
+  (`vibe/acp/acp_agent_loop.py`).
+* Permission prompts must route through the IDE client rather than
+  the local terminal (UC-014 BR-057).
+
+*Consequences (open — see Q3.4, Q3.9).* Whether LSP, a custom
+JSON-RPC schema, or vendor-specific IDE plugins were considered, and
+why ACP 0.9.0 was the resulting choice, are not recorded.
+
+*Pugh matrix.*
+
+[cols="2,1,1,1", options="header"]
+|===
+| Criterion | ACP 0.9.0 (chosen) | Custom JSON-RPC | LSP-extension
+
+| IDE ecosystem reach | 0 | − | +
+| Fit for tool-use semantics | 0 | + | −
+| Protocol maturity | 0 | + | +
+| Implementation cost | 0 | − | −
+| Cross-vendor adoption | 0 | − | 0
+| Long-term stability commitment | ? | ? | ?
+|===
+
+== ADR-004 — JSONL + JSON files for session persistence (no database)
+
+*Context.* Conversations, todo lists, and metadata must survive
+process exit and be replayable on resume
+(`vibe/core/session/session_logger.py:34`).
+
+*Decision.* Persist each session as a directory under
+`session_logging.save_dir` containing `meta.json` and
+`messages.jsonl` (`vibe/core/session/session_loader.py:16-17`).
+
+*Status.* Accepted (inferred).
+
+*Consequences (visible in code).*
+
+* Append-only writes survive crashes and partial sessions
+  (`vibe/core/session/session_logger.py`).
+* Resume scans the directory tree (`SessionLoader`,
+  `vibe/core/session/session_loader.py`).
+* No transactional guarantees across files: `meta.json` and
+  `messages.jsonl` may drift if a crash happens between writes —
+  `(open — see Q4.5)`.
+* No native indexing: title search and list filtering walk the
+  directory.
+
+*Pugh matrix.*
+
+[cols="2,1,1,1", options="header"]
+|===
+| Criterion | JSONL + JSON (chosen) | SQLite | Append-only log + index
+
+| Implementation simplicity | 0 | − | −
+| Resume scan time at 10k sessions | 0 | + | +
+| Crash safety per file | 0 | + | +
+| Cross-file atomicity | 0 | + | 0
+| Human-readability of artifacts | 0 | − | 0
+| Migration cost from the current format | ? | ? | ?
+|===
+
+== ADR-005 — Hexagonal "_port.py" convention without a DI framework
+
+*Context.* The engine must talk to LLMs, transcribe, TTS, MCP,
+telemetry, and tracing — each of which needs a test double.
+
+*Decision.* Express boundaries as abstract interfaces in files
+suffixed `_port.py` (`AGENTS.md:24`). Use `tests/stubs/Fake*`
+implementations in tests (`AGENTS.md:25,26`). No dependency-injection
+framework is introduced.
+
+*Status.* Accepted (inferred).
+
+*Consequences (visible in code).*
+
+* Wiring is manual: each `__init__.py` exposes a constructor and
+  callers pass dependencies explicitly (`AGENTS.md:21`).
+* Test doubles share filename conventions, easing discovery.
+* Wiring bugs surface at call sites rather than at container
+  resolution time.
+
+*Pugh matrix.*
+
+[cols="2,1,1,1", options="header"]
+|===
+| Criterion | _port.py + manual wiring (chosen) | `dependency-injector`
+| Constructor-injection without framework
+
+| Conceptual overhead | 0 | − | 0
+| Wiring boilerplate | 0 | + | −
+| Discoverability of seams | 0 | 0 | 0
+| Compatibility with Pyright strict | 0 | 0 | 0
+| Onboarding ramp for contributors | ? | ? | ?
+|===
+
+== ADR-006 — Mistral provider default with OpenAI-style fallback
+
+*Context.* The product is Mistral's CLI; it must run against Mistral
+models out of the box but should not be locked to that vendor on the
+wire (`vibe/core/config/_settings.py:172-218`).
+
+*Decision.* Ship a `mistral` `ProviderConfig` as the default
+(`vibe/core/config/_settings.py:424-466`) and a generic
+`api_style="openai"` backend
+(`vibe/core/config/_settings.py:175-178`) so any OpenAI-compatible
+endpoint works without code changes.
+
+*Status.* Accepted (inferred).
+
+*Consequences (visible in code).*
+
+* The Mistral SDK is pinned at `mistralai==2.4.4`
+  (`pyproject.toml`).
+* Backwards-compatibility logic exists for legacy `mistral`
+  providers without a `backend` field
+  (`vibe/core/config/_settings.py:185-218`).
+* An Anthropic backend exists (`vibe/core/llm/backend/anthropic.py`)
+  but is described as `legacy`.
+
+*Consequences (open — see Q4.3).* Whether the Anthropic backend is
+supported, deprecated, or transitional; whether non-Mistral providers
+are an official sales surface or a developer convenience.
+
+*Pugh matrix.*
+
+[cols="2,1,1,1", options="header"]
+|===
+| Criterion | Mistral + OpenAI-style fallback (chosen)
+| Mistral-only | Multi-provider abstraction with per-vendor SDKs
+
+| Time-to-third-party-support | 0 | − | +
+| Vendor coupling | 0 | − | +
+| Maintenance per provider | 0 | + | −
+| Feature parity across providers | 0 | + | −
+| Strategic alignment with Mistral | ? | ? | ?
+|===
+
+== ADR-007 — asyncio as orchestration runtime
+
+*Context.* The agent loop interleaves streaming LLM calls, streaming
+tool execution, MCP server I/O, and TUI rendering
+(`vibe/core/agent_loop.py`).
+
+*Decision.* Use `asyncio` with `httpx.AsyncClient`,
+`asyncio.create_task`, and queues for concurrent work
+(`AGENTS.md:64-69`). Avoid blanket `gather` (`AGENTS.md:65`). Use
+`anyio.Path` for file I/O on async paths (`AGENTS.md:66`).
+
+*Status.* Accepted (inferred).
+
+*Consequences (visible in code).*
+
+* Streaming surfaces return `AsyncGenerator[Event, None]`
+  (`AGENTS.md:67`).
+* HTTP tests use `respx` (`AGENTS.md:69`).
+* Deferred heavy initialisation runs on a daemon thread
+  (`vibe/core/agent_loop.py:351-356`) — the only thread in the
+  engine.
+
+*Pugh matrix.*
+
+[cols="2,1,1", options="header"]
+|===
+| Criterion | asyncio (chosen) | trio
+
+| Ecosystem coverage | 0 | −
+| `httpx`/`anyio` integration | 0 | 0
+| Cancellation ergonomics | 0 | +
+| Team familiarity | ? | ?
+|===
+
+== ADR-008 — Opt-out telemetry default
+
+*Context.* Telemetry is needed to understand product usage
+(`vibe/core/telemetry/`); it is also a privacy-sensitive boundary.
+
+*Decision.* `enable_telemetry: bool = True`
+(`vibe/core/config/_settings.py:519`) — opt-out at install time.
+Session logging is also opt-out
+(`vibe/core/config/_settings.py:556`).
+
+*Status.* Accepted (inferred).
+
+*Consequences (visible in code).*
+
+* `/data-retention` and the README's "Data collection & usage"
+  section (`README.md`) are the user-facing controls (UC-012).
+* The user must edit `config.toml` to disable telemetry; no
+  one-shot CLI flag exists.
+
+*Consequences (open — see Q5.6, Q5.8).* Whether telemetry payloads
+have been audited for PII / secret leakage; what happens when the
+datalake endpoint is unreachable.
+
+*Pugh matrix.*
+
+[cols="2,1,1", options="header"]
+|===
+| Criterion | Opt-out (chosen) | Opt-in
+
+| Volume of usage data | 0 | −
+| Privacy posture by default | 0 | +
+| User-onboarding friction | 0 | 0
+| Regulatory exposure | ? | ?
+| Trust signal to OSS users | ? | ?
+|===
+
+== Cross-cutting open question
+
+`(open — see Q3.9)` The team should record a primary decision-making
+criterion (or weight) per ADR so future revisits start from a real
+baseline rather than the `?` cells above.
