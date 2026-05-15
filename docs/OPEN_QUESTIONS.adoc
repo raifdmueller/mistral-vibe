@@ -1,0 +1,207 @@
+= Mistral Vibe — Open Questions
+:toc: left
+:toclevels: 2
+:sectnums:
+
+== About this document
+
+This is the Phase 1 handoff of the Socratic Code-Theory Recovery
+workflow. Each question below is an `[OPEN]` leaf from
+`docs/QUESTION_TREE.adoc` that cannot be answered from the code alone.
+Questions are grouped by the role best placed to answer them. Each
+question is short enough to need only 1–3 sentences in reply.
+
+When you answer, cite the Q-ID and prefix the response with `(team
+answer)` so Phase 2 documentation can trace back to its source.
+
+== For the Product Owner
+
+Strategy, user segmentation, scope, monetisation, and roadmap.
+
+[cols="1,4", options="header"]
+|===
+| Q-ID | Question
+
+| Q1.2.1
+| Which developer personas are Vibe's primary targets — by seniority,
+  team size, or language? Is there an explicit ranking?
+
+| Q1.2.3
+| What baseline skills do you assume a Vibe user has (e.g. comfort
+  reading code, comfort approving shell commands)?
+
+| Q1.3
+| Of the eight jobs-to-be-done listed in the README (explore, edit,
+  shell, search, todo, ask, delegate, ACP), which three matter most?
+
+| Q1.4
+| What is Vibe's deliberate positioning versus Claude Code, Aider,
+  Cursor, Cody, and other CLI coding agents?
+
+| Q1.5.1
+| Are the telemetry events at
+  `vibe/core/telemetry/send.py:217-282` driving formal product KPIs,
+  or are they exploratory instrumentation?
+
+| Q1.5.2
+| Which user behaviours count as "successful adoption" for the team?
+
+| Q1.6
+| What is the intended monetisation path — API consumption, Vibe Code
+  upsell, enterprise tier, something else?
+
+| Q2.5
+| What is explicitly *out of scope* for Vibe? A formal non-goals
+  statement is missing.
+
+| Q3.3.1.a
+| Are there stakeholders not visible in the code (legal, compliance,
+  support, billing) whose concerns should shape architecture?
+
+| Q4.4.2
+| Is accessibility (screen-reader support, high-contrast, motor
+  alternatives to keyboard chords) a stated goal?
+
+| Q4.4.3.a
+| Is non-English support on the roadmap?
+
+| Q4.6.3.a
+| When a user configures a non-Mistral provider, is there a documented
+  data-residency or DPA commitment we should surface in the UI?
+
+| Q5.5.a
+| Default-on telemetry — has this been reviewed against EU/US
+  enterprise compliance regimes, or is it expected to remain on by
+  default?
+
+| Q5.9
+| What is the public-facing roadmap for: sandboxed execution, a skill
+  marketplace, multi-user/pair-programming, an embeddable Python API?
+|===
+
+== For the Architect
+
+Solution strategy, ADRs, threat model, quality bars.
+
+[cols="1,4", options="header"]
+|===
+| Q-ID | Question
+
+| Q3.1.2
+| Of the implicit quality goals (TUI usability, permissioned safety,
+  extensibility), which is the team's top one when they conflict?
+
+| Q3.2.4
+| What is the rationale for the most opinionated constraints — pyright
+  strict, no relative imports, Textual as TUI framework, `uv` as the
+  only entry point?
+
+| Q3.4.1.a
+| Is hexagonal / ports-and-adapters the official target style for the
+  whole codebase, or only for newer modules with `_port.py` suffixes?
+
+| Q3.8.1
+| Is there an internal threat model (STRIDE or otherwise) we can use
+  to populate §8.1 of the arc42 documentation?
+
+| Q3.9.1
+| Each of the ten ADR candidates in `QUESTION_TREE.adoc:Q3.9.1` is a
+  separate decision. Which still reflect current thinking, and which
+  would you revisit today?
+
+| Q4.1.2.a
+| What line/branch coverage do you target? Should we add a coverage
+  gate to CI?
+
+| Q4.2.1
+| What is the target time-to-first-token and end-to-end latency for
+  a typical turn?
+
+| Q4.3.2 (future-direction)
+| What is the policy for tracking ACP and MCP protocol revisions —
+  pin and skip, or follow head?
+
+| Q4.9
+| ISO 25010:2023 introduced a Safety characteristic. Should Vibe
+  publish a safety case (data integrity, command intent, user
+  consent)?
+
+| Q5.6
+| What is the session-log evolution policy: versioned forward-only
+  migrations, support for the last N releases, or best-effort?
+|===
+
+== For the Developer
+
+Implementation details, refactor targets, internal documentation.
+
+[cols="1,4", options="header"]
+|===
+| Q-ID | Question
+
+| Q3.6.3.a
+| A formal sequence diagram for the ACP initialise/turn/cancel flow
+  would help editor authors — is there a draft somewhere we can use?
+
+| Q3.8.4.a
+| Is the LLM retry/circuit-breaker logic centralised, or ad-hoc per
+  call site? Where should it live?
+
+| Q3.12
+| Should the scattered domain glossary in `docs/use_cases/*.md` and
+  `docs/entity_model.md` be consolidated into a single
+  `docs/glossary.md`?
+
+| Q5.2.a
+| `vibe/core/agent_loop.py` is 1716 lines and the largest core
+  module. Is splitting it on the roadmap, and along which seam?
+|===
+
+== For Operations
+
+Deployment, runtime, telemetry, compliance.
+
+[cols="1,4", options="header"]
+|===
+| Q-ID | Question
+
+| Q5.3.a
+| What is the contingency plan if one of the dependent Mistral APIs
+  (transcription, TTS, datalake, Vibe Code) is deprecated mid-release
+  cycle?
+
+| Q5.4.a
+| What does the CI matrix look like? Are Windows and macOS exercised
+  on every PR, or is Linux the only blocking target?
+|===
+
+== For the Domain Expert
+
+(No outstanding questions — the domain of "CLI coding assistant" is
+adequately captured in the use cases and entity model.)
+
+== For Future Direction
+
+Aggregated forward-looking items (also routed by role above):
+
+* Q2.4.1.a — LLM feature roadmap (caching, structured outputs)
+* Q2.4.5 — Vibe Code remote contract documentation
+* Q4.3.2 — Protocol-revision policy
+* Q4.4.3.a — Internationalisation
+* Q5.3.a — External-API contingency
+* Q5.9 — Strategic roadmap
+
+== Counting
+
+* Open Questions total: *24*
+* By role: Product Owner 14 · Architect 10 · Developer 4 · Operations 2
+* By category: business-context 9 · design-rationale 8 · quality-goals 4 ·
+  future-direction 7 · stakeholder-context 1
+  (some questions are dual-tagged)
+
+The Naur (1985) "theory recovery" result quoted in the Brownfield
+guidance — eleven targeted questions sufficed to close a 13 000-line
+project's documentation gap — is consistent with this list. The
+14 Product Owner items are the single biggest cluster: they reflect
+that this repository is technically self-documenting but says little
+about the *why* of its existence.
