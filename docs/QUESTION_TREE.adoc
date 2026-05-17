@@ -1,0 +1,380 @@
+= Question Tree — Socratic Code-Theory Recovery
+:toc: left
+:toclevels: 3
+
+This is the Phase 1 artifact of Socratic Code-Theory Recovery. It recovers the
+"theory" (Naur 1985) behind *Mistral Vibe* through recursive question
+refinement. Each leaf is either `[ANSWERED]` with code evidence
+(`file:line` or `file::function`) or `[OPEN]` with a Category and an Ask role.
+
+*Bounded context:* the whole Mistral Vibe product is treated as a single
+bounded context. It has internal modules (`vibe/core`, `vibe/cli`, `vibe/acp`,
+`vibe/setup`) but ships as one application with one purpose.
+
+== Q1 — What problem does this bounded context solve, and for whom?
+
+=== Q1.1 — What problem does the product solve?
+`[ANSWERED]` Mistral Vibe is a command-line coding assistant that gives a
+conversational, natural-language interface to a codebase, letting users
+explore and modify projects through a set of tools.
+Evidence: `README.md:21-23`.
+
+=== Q1.2 — Who are the direct users?
+`[ANSWERED]` Three user roles are visible in the entry points:
+developers using the interactive terminal UI (`vibe/cli/entrypoint.py:19-40`),
+automation/scripts using non-interactive programmatic mode
+(`vibe/cli/entrypoint.py:42-49`, `--prompt`), and IDEs/editors connecting over
+the Agent Client Protocol (`vibe/acp/entrypoint.py:30-37`).
+
+=== Q1.3 — What channels do users reach the product through?
+`[ANSWERED]` Two installable entry points: `vibe` (interactive CLI) and
+`vibe-acp` (ACP bridge).
+Evidence: `pyproject.toml` `[project.scripts]` (`vibe = "vibe.cli.entrypoint:main"`,
+`vibe-acp = "vibe.acp.entrypoint:main"`).
+
+=== Q1.4 — Why does Mistral fund and open-source this product?
+`[OPEN]` +
+Category: business-context +
+Ask role: Product Owner +
+The code shows _what_ the product does but not the business motivation —
+whether it exists to drive Mistral API consumption, to grow developer
+adoption, as a reference client, or for another reason.
+
+=== Q1.5 — What does success look like, and how is it measured?
+`[OPEN]` +
+Category: business-context +
+Ask role: Product Owner +
+Telemetry is collected (`vibe/core/telemetry/send.py`) but the code does not
+state the success metrics (adoption, retention, conversion) the product is
+judged against.
+
+=== Q1.6 — Which user segment is the priority when goals conflict?
+`[OPEN]` +
+Category: stakeholder-context +
+Ask role: Product Owner +
+Interactive developers, automation callers, and IDE integrators are all
+served; the code does not reveal which segment wins a trade-off.
+
+== Q2 — What is the specification of this bounded context?
+
+Decomposed with the Cockburn Use Case anchor (Primary Actor, Trigger, Main
+Success Scenario, Extensions, Postconditions).
+
+=== Q2.1 — Who are the primary and supporting actors?
+`[ANSWERED]` Primary: Developer, Automation, IDE Client. Supporting: LLM
+Provider, MCP Server, Vibe Code Cloud.
+Evidence: `docs/use_cases.puml`; agent roles in
+`vibe/core/agents/models.py:38-46`; ACP actor in `vibe/acp/entrypoint.py`.
+
+=== Q2.2 — What user goals (use cases) does the product support?
+`[ANSWERED]` Fifteen use cases were recovered and specified.
+Evidence: `docs/use_cases/` (UC-001 … UC-015); triggers in
+`vibe/cli/entrypoint.py:19-119`, `vibe/cli/commands.py:53-176`,
+`vibe/acp/commands/registry.py:44-89`.
+
+=== Q2.3 — What triggers each use case?
+`[ANSWERED]` CLI arguments (`vibe/cli/entrypoint.py:34-119`), slash commands
+(`vibe/cli/commands.py::_build_commands`), ACP protocol messages and commands
+(`vibe/acp/commands/registry.py::_build_commands`).
+
+=== Q2.4 — What are the main success scenarios?
+`[ANSWERED]` Documented per use case in `docs/use_cases/UC-*.md`; the core
+turn loop is `vibe/core/agent_loop.py::AgentLoop` (class at
+`vibe/core/agent_loop.py:221`).
+
+=== Q2.5 — What extensions / alternative flows exist?
+`[ANSWERED]` Error and branch handling: retry classification
+(`vibe/core/agent_loop.py:166-194`), turn/price/compaction middleware
+(`vibe/core/middleware.py:49-128`), tool failure handling
+(`vibe/core/tools/base.py:59` `ToolError`).
+
+=== Q2.6 — What are the postconditions / persisted effects?
+`[ANSWERED]` Sessions persist metadata (`meta.json`) and messages
+(`messages.jsonl`).
+Evidence: `vibe/core/session/session_loader.py:16-17`;
+`vibe/core/session/session_logger.py`.
+
+=== Q2.7 — What are the technical interface contracts (CLI / ACP / file formats)?
+`[ANSWERED]` CLI flags and environment variables
+(`vibe/cli/entrypoint.py:19-119`); ACP capabilities and commands
+(`vibe/acp/commands/registry.py`); on-disk session format
+(`vibe/core/session/session_loader.py:16-17`); TOML config schema
+(`vibe/core/config/_settings.py:498`).
+
+=== Q2.8 — What is the executable specification (acceptance criteria)?
+`[ANSWERED]` 228 test files encode intended behaviour, mirroring the source
+layout, with `Fake*` doubles in `tests/stubs/`.
+Evidence: `tests/` tree; `AGENTS.md:9`. Note: tests are pytest, not Gherkin —
+the intended behaviour is recoverable but not in Given/When/Then form.
+
+=== Q2.9 — What business rules govern behaviour?
+`[ANSWERED]` 37 business rules were extracted to the use case specs.
+Underlying code: tool-permission rules (`vibe/core/tools/permissions.py:10-30`),
+config merge rules (`vibe/core/config/schema.py:104-138`), trust rules
+(`vibe/core/trusted_folders.py:35`).
+
+=== Q2.10 — What is deliberately out of scope?
+`[OPEN]` +
+Category: business-context +
+Ask role: Product Owner +
+The code shows what is built; it does not record what was consciously
+excluded (for example, a web UI, multi-user collaboration, or non-Mistral
+model hosting as a first-class goal).
+
+== Q3 — What is the architecture of this bounded context?
+
+Decomposed with the arc42 anchor (12 chapters).
+
+=== Q3.1 — Introduction and goals (arc42 ch.1)
+`[ANSWERED]` Goal: a minimal CLI coding agent. Top quality drivers visible in
+tooling are correctness (strict typing, tests) and a responsive TUI.
+Evidence: `pyproject.toml` `description`; `AGENTS.md:1-5`.
+
+=== Q3.2 — Constraints (arc42 ch.2)
+`[ANSWERED]` Technical constraints: Python ≥ 3.12 (`pyproject.toml`
+`requires-python`, `.python-version`); `uv` is the mandated toolchain
+(`AGENTS.md:9-13`); UNIX is the supported target, Windows is best-effort
+(`README.md:25-26`).
+
+==== Q3.2.1 — What organizational or regulatory constraints apply?
+`[OPEN]` +
+Category: stakeholder-context +
+Ask role: Product Owner +
+The code cannot state licensing obligations beyond Apache-2.0, data-handling
+requirements, or release-cadence commitments.
+
+=== Q3.3 — Context and scope (arc42 ch.3)
+`[ANSWERED]` External systems the product talks to: LLM providers via HTTP
+(`vibe/core/llm/backend/factory.py:7`), MCP servers
+(`vibe/core/tools/mcp/`), the OS keyring (`vibe/core/auth/github.py`),
+GitHub for auth and updates, an OTLP telemetry endpoint
+(`vibe/core/tracing.py:23-42`), and Vibe Code Cloud (`vibe/core/teleport/`).
+
+=== Q3.4 — Solution strategy (arc42 ch.4)
+`[ANSWERED]` Layered modular monolith: `vibe/core` is the engine,
+`vibe/cli` the Textual TUI, `vibe/acp` the ACP bridge, `vibe/setup` the
+first-run wizards.
+Evidence: `AGENTS.md:5`.
+
+==== Q3.4.1 — Why was this layering chosen over alternatives?
+`[OPEN]` +
+Category: design-rationale +
+Ask role: Architect +
+The module split is observable, but the reasoning (e.g. enabling two
+front-ends — CLI and ACP — over one shared core) is not written down.
+
+=== Q3.5 — Building block view (arc42 ch.5)
+`[ANSWERED]` Core building blocks: `AgentLoop` (`vibe/core/agent_loop.py:221`),
+`ToolManager` (`vibe/core/tools/manager.py`), pluggable LLM backends
+(`vibe/core/llm/backend/`), layered config (`vibe/core/config/`), session
+persistence (`vibe/core/session/`), hooks (`vibe/core/hooks/`), skills
+(`vibe/core/skills/`). Some modules use hexagonal ports/adapters
+(`*_port.py` files, e.g. `vibe/cli/plan_offer/ports/whoami_gateway.py` with
+`vibe/cli/plan_offer/adapters/http_whoami_gateway.py`; `AGENTS.md:21`).
+
+=== Q3.6 — Runtime view (arc42 ch.6)
+`[ANSWERED]` A turn runs as: prompt → middleware `before_turn` checks →
+backend completion → tool execution (with approval) → repeat until no tool
+calls.
+Evidence: `vibe/core/agent_loop.py::AgentLoop`;
+`vibe/core/middleware.py:43-128`.
+
+=== Q3.7 — Deployment view (arc42 ch.7)
+`[ANSWERED]` Distributed as a PyPI package and via an install script
+(`scripts/install.sh`), as a standalone PyInstaller binary (`pyinstaller/`,
+`vibe-acp.spec`), and as a Zed editor extension (`distribution/zed/`). A Nix
+flake is provided (`flake.nix`).
+
+=== Q3.8 — Crosscutting concepts (arc42 ch.8)
+`[ANSWERED]` Observable crosscutting concepts: configuration layering and
+merge strategies (`vibe/core/config/schema.py:104-138`), tool-permission /
+trust model (`vibe/core/tools/permissions.py`, `vibe/core/trusted_folders.py`),
+observability via OpenTelemetry (`vibe/core/tracing.py`) and telemetry
+(`vibe/core/telemetry/`), retry/error handling
+(`vibe/core/agent_loop.py:166-194`), and conversation-context management
+middleware (`vibe/core/middleware.py`).
+
+=== Q3.9 — Architecture decisions (arc42 ch.9)
+
+Decomposed with the Nygard ADR anchor (Context, Decision, Status,
+Consequences). The decisions are observable; their rationale is largely open.
+
+==== Q3.9.1 — Textual was chosen for the interactive UI
+`[ANSWERED]` (decision) The TUI is built on Textual.
+Evidence: `textual==8.2.4` in `pyproject.toml`; `vibe/cli/textual_ui/`.
+
+==== Q3.9.1.R — Why Textual rather than another TUI framework?
+`[OPEN]` +
+Category: design-rationale +
+Ask role: Architect +
+The dependency is pinned exactly, suggesting a deliberate choice, but the
+trade-off (vs. prompt_toolkit, Rich-only, a web UI) is not recorded.
+
+==== Q3.9.2 — ACP was chosen for IDE integration
+`[ANSWERED]` (decision) The product bridges to editors via the Agent Client
+Protocol.
+Evidence: `agent-client-protocol==0.9.0` in `pyproject.toml`; `vibe/acp/`.
+
+==== Q3.9.3 — Configuration is layered with explicit merge strategies
+`[ANSWERED]` (decision) Config is composed from built-in, user, and project
+layers with per-field merge strategies (replace, concat, union, shallow,
+conflict).
+Evidence: `vibe/core/config/schema.py:104-138`; `vibe/core/config/layer.py:88`.
+
+==== Q3.9.3.R — Why per-field merge strategies rather than simple override?
+`[OPEN]` +
+Category: design-rationale +
+Ask role: Architect +
+The mechanism is sophisticated; the reasoning for its complexity (which
+real-world config conflicts it solves) is not documented.
+
+==== Q3.9.4 — LLM backends are pluggable behind a factory
+`[ANSWERED]` (decision) Mistral and a generic OpenAI-style backend are
+selected via a factory.
+Evidence: `vibe/core/llm/backend/factory.py:7` (`BACKEND_FACTORY`); backends
+in `vibe/core/llm/backend/` (anthropic, vertex, openai_responses also present).
+
+==== Q3.9.5 — Hexagonal ports/adapters are used for external integrations
+`[ANSWERED]` (decision) Abstract interfaces use a `_port.py` suffix with
+concrete adapters alongside.
+Evidence: `AGENTS.md:21`; `vibe/cli/plan_offer/ports/` vs `…/adapters/`;
+`vibe/core/tts/tts_client_port.py`, `vibe/core/transcribe/transcribe_client_port.py`.
+
+==== Q3.9.6 — Sessions are persisted as flat files, not a database
+`[ANSWERED]` (decision) Each session is a directory with `meta.json` and
+`messages.jsonl`.
+Evidence: `vibe/core/session/session_loader.py:16-17`.
+
+==== Q3.9.6.R — Why flat files rather than an embedded database?
+`[OPEN]` +
+Category: design-rationale +
+Ask role: Architect +
+A `session_migration.py` exists, implying the format evolves; the choice of
+files over SQLite (portability? human-readability? simplicity?) is not stated.
+
+==== Q3.9.7 — Observability uses OpenTelemetry
+`[ANSWERED]` (decision) Tracing exports OTLP spans when enabled.
+Evidence: `vibe/core/tracing.py:23-42`; `opentelemetry-*` deps in
+`pyproject.toml`.
+
+=== Q3.10 — Quality requirements (arc42 ch.10)
+`[ANSWERED]` Quality is enforced in CI: pre-commit, strict `pyright`, `ruff`,
+and the full pytest suite all gate merges.
+Evidence: `.github/workflows/ci.yml:14-86`; `pyproject.toml` `[tool.pyright]`,
+`[tool.ruff]`.
+
+==== Q3.10.1 — What are the prioritized quality scenarios and their targets?
+`[OPEN]` +
+Category: quality-goals +
+Ask role: Architect +
+Tooling shows quality is _valued_, but the code does not state measurable
+targets (e.g. startup latency budget, token-throughput goals, crash-rate
+ceiling) or which quality wins when two conflict.
+
+=== Q3.11 — Risks and technical debt (arc42 ch.11)
+`[ANSWERED]` See Q5.
+
+=== Q3.12 — Glossary (arc42 ch.12)
+`[ANSWERED]` Domain terms are used consistently in code: agent, agent mode/
+profile, tool, skill, hook, session, teleport, connector, MCP server.
+Evidence: `vibe/core/agents/models.py`, `vibe/core/skills/models.py`,
+`vibe/core/hooks/models.py`, `vibe/core/types.py`.
+
+== Q4 — What quality goals drive the design?
+
+Decomposed with the ISO/IEC 25010 anchor (8 characteristics).
+
+=== Q4.1 — Functional suitability
+`[ANSWERED]` 228 test files mirror the source layout and exercise behaviour
+end to end (e2e suite under `tests/e2e/`).
+Evidence: `tests/` tree.
+
+=== Q4.2 — Performance efficiency
+`[ANSWERED]` Performance is an explicit concern: a profiler is built in
+(`vibe/cli/profiler.py:33-63`), `textual-speedups` is a dependency, and
+deferred initialization is used (`vibe/core/agent_loop.py::_start_deferred_init`,
+tested by `tests/test_deferred_init.py`).
+
+=== Q4.3 — Compatibility
+`[ANSWERED]` Runs on UNIX and Windows (UNIX is the supported target —
+`README.md:25-26`); integrates with editors via ACP and with external tools
+via MCP (`vibe/core/tools/mcp/`).
+
+=== Q4.4 — Usability
+`[ANSWERED]` First-run onboarding wizards (`vibe/setup/onboarding/`), a
+Textual TUI with autocompletion (`vibe/cli/autocompletion/`), optional voice
+input and narration (`vibe/core/transcribe/`, `vibe/core/tts/`).
+
+=== Q4.5 — Reliability
+`[ANSWERED]` Transient failures are retried with backoff and classified as
+retryable/non-retryable (`vibe/core/agent_loop.py:166-194`); spans degrade
+safely (`vibe/core/tracing.py:52-84`); turn/price/context middleware guards
+runaway runs (`vibe/core/middleware.py:49-128`).
+
+=== Q4.6 — Security
+`[ANSWERED]` Credentials are kept in the OS keyring
+(`vibe/core/auth/github.py:16-18`); working directories that carry
+behaviour-changing files must be explicitly trusted
+(`vibe/core/trusted_folders.py:19-35`); tool actions are gated by a
+permission model (`vibe/core/tools/permissions.py`,
+`vibe/core/tools/builtins/bash.py:328` allowlist); a combined SSL context is
+built for all outbound HTTPS (`CHANGELOG.md` 2.9.6).
+
+=== Q4.7 — Maintainability
+`[ANSWERED]` Strict typing (`pyright`), linting/formatting (`ruff`),
+pre-commit, `vulture` dead-code detection, and explicit module conventions
+(`AGENTS.md`); ports/adapters isolate external systems.
+Evidence: `pyproject.toml` `[dependency-groups] dev`; `.pre-commit-config.yaml`.
+
+=== Q4.8 — Portability
+`[ANSWERED]` Distributed as a PyPI package, a PyInstaller binary, a Zed
+extension, and via a Nix flake; pinned to one Python version.
+Evidence: `pyinstaller/`, `distribution/zed/`, `flake.nix`,
+`.python-version`.
+
+=== Q4.9 — Which quality characteristic has priority?
+`[OPEN]` +
+Category: quality-goals +
+Ask role: Architect +
+All eight characteristics are addressed; the code does not say which
+dominates — for example, whether responsiveness beats feature breadth, or
+security gating beats convenience.
+
+== Q5 — What risks and technical debt exist?
+
+=== Q5.1 — What technical debt is acknowledged in the code?
+`[ANSWERED]` Very little inline debt: only 7 `TODO/FIXME/HACK` markers across
+`vibe/`, e.g. an OTel feature flag pending public release
+(`vibe/core/config/_settings.py:530`) and a path-root assumption flagged as
+possibly unreliable (`vibe/core/autocompletion/completers.py:330`).
+
+=== Q5.2 — What format-evolution risk exists?
+`[ANSWERED]` Session storage evolves; a dedicated migration path runs at
+startup.
+Evidence: `vibe/core/session/session_migration.py`;
+`vibe/core/agent_loop.py` imports `migrate_sessions_entrypoint`.
+
+=== Q5.3 — What platform risk exists?
+`[ANSWERED]` Windows is supported but not a target platform, so Windows
+regressions are an accepted risk.
+Evidence: `README.md:25-26`.
+
+=== Q5.4 — What external-dependency risk exists?
+`[ANSWERED]` (partial) The product depends on external LLM providers, MCP
+servers, GitHub, and Vibe Code Cloud; backends are pluggable
+(`vibe/core/llm/backend/factory.py`) which mitigates single-provider lock-in.
+
+=== Q5.5 — Are the dependency and availability risks consciously accepted?
+`[OPEN]` +
+Category: future-direction +
+Ask role: Operations +
+The code mitigates provider failure with retries and pluggable backends, but
+does not record the accepted risk posture (SLA expectations, what happens
+when Mistral's API is unreachable, telemetry-endpoint downtime handling).
+
+=== Q5.6 — Is there a deprecation / debt-reduction roadmap?
+`[OPEN]` +
+Category: future-direction +
+Ask role: Architect +
+Migration code exists but the code does not say which subsystems are
+considered legacy or scheduled for replacement.
