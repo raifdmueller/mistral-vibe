@@ -1,0 +1,66 @@
+@startuml Use Cases Overview
+left to right direction
+
+actor "Developer" as dev
+actor "Subagent" as subagent
+actor "Mistral Platform" as mistral
+actor "MCP Server / Connector" as mcp
+actor "Scheduler" as scheduler
+
+rectangle "Mistral Vibe" {
+    usecase "UC-001\nStart a Coding Session" as UC001
+    usecase "UC-002\nConverse with the Coding Agent" as UC002
+    usecase "UC-003\nApprove or Reject a Tool Execution" as UC003
+    usecase "UC-004\nAnswer an Agent Question" as UC004
+    usecase "UC-005\nRun a Shell Command Directly" as UC005
+    usecase "UC-006\nSwitch the Active Agent Profile" as UC006
+    usecase "UC-007\nSelect Model and Thinking Level" as UC007
+    usecase "UC-008\nManage Conversation Context" as UC008
+    usecase "UC-009\nResume a Past Session" as UC009
+    usecase "UC-010\nRename a Session" as UC010
+    usecase "UC-011\nConfigure Vibe" as UC011
+    usecase "UC-012\nRun Vibe Programmatically" as UC012
+    usecase "UC-013\nInvoke a Skill" as UC013
+    usecase "UC-014\nConnect MCP Servers and Connectors" as UC014
+    usecase "UC-015\nDelegate Work to a Subagent" as UC015
+    usecase "UC-016\nUse Voice Input" as UC016
+    usecase "UC-017\nSchedule a Recurring Prompt" as UC017
+    usecase "UC-018\nTeleport a Session to Vibe Code" as UC018
+    usecase "UC-019\nInstall or Remove the Lean Agent" as UC019
+    usecase "UC-020\nReceive Update Notifications" as UC020
+    usecase "UC-021\nTrust a Working Directory" as UC021
+}
+
+dev --> UC001
+dev --> UC002
+dev --> UC003
+dev --> UC004
+dev --> UC005
+dev --> UC006
+dev --> UC007
+dev --> UC008
+dev --> UC009
+dev --> UC010
+dev --> UC011
+dev --> UC012
+dev --> UC013
+dev --> UC016
+dev --> UC017
+dev --> UC018
+dev --> UC019
+dev --> UC021
+
+UC001 ..> UC021 : <<include>>
+UC002 ..> UC003 : <<extend>>
+UC002 ..> UC004 : <<extend>>
+UC002 ..> UC015 : <<extend>>
+UC008 ..> UC002 : <<extend>>
+
+mistral --> UC002
+mistral --> UC016
+mcp --> UC014
+subagent --> UC015
+scheduler --> UC017
+mistral --> UC020
+
+@enduml
