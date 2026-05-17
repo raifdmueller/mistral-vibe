@@ -1,0 +1,132 @@
+= Architecture Decisions — Mistral Vibe
+:toc: left
+:sectnums:
+:revnumber: recovered from source v2.9.6
+
+ADRs in Nygard format, recovered from source code. Because no team confirmed
+the rationale, every ADR has Status *Accepted (inferred)*. Pugh-matrix cells
+that need team judgement are marked `?` rather than guessed. The 3-point scale
+is -1 (worse), 0 (equal), +1 (better), measured against the recovered quality
+goals; the baseline column is the rejected alternative.
+
+== ADR-001 — Hexagonal ports-and-adapters structure
+
+*Status*: Accepted (inferred)
+
+*Context*: The engine integrates many external systems (LLM APIs, MCP servers,
+keyring, audio devices, cloud). The codebase consistently separates abstract
+interfaces (`_port.py` suffix) from adapters (`AGENTS.md:23`,
+`vibe/cli/narrator_manager/narrator_manager_port.py`,
+`vibe/core/transcribe/transcribe_client_port.py`, and many more).
+
+*Decision*: Use a hexagonal architecture — domain logic depends on ports;
+adapters implement them at the boundary; dependencies point inward.
+
+*Consequences*: (+) external systems are swappable and mockable in tests;
+(+) clear layer boundaries. (−) more files and indirection; (−) discipline
+needed to keep adapters thin.
+
+[cols="2,1,1,1",options="header"]
+|===
+| Criterion | Hexagonal (chosen) | Direct calls (baseline) | Note
+| Maintainability | +1 | 0 | Swappable adapters.
+| Testability | +1 | 0 | Ports mock cleanly with `Fake*` doubles.
+| Simplicity | -1 | 0 | More indirection.
+| Confirmed fit to goals | ? | 0 | Needs team — Q3.9.
+|===
+
+== ADR-002 — Pluggable LLM backend via a factory
+
+*Status*: Accepted (inferred)
+
+*Context*: Vibe targets Mistral models but the code ships Anthropic, OpenAI
+(Responses), generic, and Vertex backends (`vibe/core/llm/backend/`), selected
+by `BACKEND_FACTORY` (`vibe/core/llm/backend/factory.py`).
+
+*Decision*: Hide provider differences behind a `BackendLike` interface and a
+factory; a `reasoning_adapter` normalises reasoning-content differences.
+
+*Consequences*: (+) new providers add a file, not a rewrite; (+) provider
+quirks are isolated. (−) the lowest-common-denominator interface may hide
+provider-specific features.
+
+[cols="2,1,1,1",options="header"]
+|===
+| Criterion | Backend factory (chosen) | Mistral-only client (baseline) | Note
+| Compatibility | +1 | -1 | Multiple providers supported.
+| Maintainability | +1 | 0 | Provider quirks isolated.
+| Feature richness | 0 | +1 | Common interface may hide features.
+| Confirmed multi-provider intent | ? | 0 | Needs team — Q3.9.
+|===
+
+== ADR-003 — Layered TOML configuration with a trust gate
+
+*Status*: Accepted (inferred)
+
+*Context*: Config comes from built-in defaults, `~/.vibe/config.toml`, and a
+project `./.vibe/config.toml`. Project config is attacker-controllable, so
+loading it from an untrusted folder is a tampering risk (T-001).
+
+*Decision*: Merge config in layers (closer overrides farther) and gate
+project-local layers behind the trust-folder system; an untrusted layer raises
+`UntrustedLayerError` (`vibe/core/config/layer.py:25-29`).
+
+*Consequences*: (+) per-project customisation without sacrificing safety;
+(+) explicit trust decision recorded. (−) extra prompt on first use of a folder;
+(−) layering precedence must be understood by users.
+
+[cols="2,1,1,1",options="header"]
+|===
+| Criterion | Layered + trust gate (chosen) | Single global config (baseline) | Note
+| Security | +1 | -1 | Closes T-001.
+| Flexibility | +1 | -1 | Per-project overrides.
+| Usability | -1 | +1 | Extra trust prompt.
+| Confirmed threat priority | ? | 0 | Needs team — Q5.2.
+|===
+
+== ADR-004 — File-based session persistence (no database)
+
+*Status*: Accepted (inferred)
+
+*Context*: Vibe is a single-user local CLI. Sessions must persist, resume, and
+rewind (`docs/entity_model.md:1-8`, `vibe/core/session/`).
+
+*Decision*: Persist sessions as files under `~/.vibe`; no relational database.
+A migration path handles format changes (`session_migration.py`).
+
+*Consequences*: (+) zero setup, no DB dependency, easy backup/inspection;
+(+) fits the local single-user model. (−) no query/index over sessions;
+(−) format migrations are hand-rolled.
+
+[cols="2,1,1,1",options="header"]
+|===
+| Criterion | File-based (chosen) | Embedded DB e.g. SQLite (baseline) | Note
+| Simplicity | +1 | 0 | No DB dependency.
+| Portability | +1 | 0 | Plain files.
+| Queryability | -1 | +1 | No indexed search.
+| Confirmed scale assumptions | ? | 0 | Needs team — Q5.5.
+|===
+
+== ADR-005 — Textual TUI decoupled from the core engine
+
+*Status*: Accepted (inferred)
+
+*Context*: Vibe needs a rich interactive terminal UI but also a headless
+programmatic mode and an ACP server. A UI-coupled engine would block the latter
+two.
+
+*Decision*: Build the UI in `vibe/cli` on Textual; keep `vibe/core` UI-agnostic
+so `vibe -p` and `vibe-acp` reuse the same engine.
+
+*Consequences*: (+) one engine, three channels; (+) the TUI can evolve
+independently. (−) Textual pins (`textual==8.2.4`) and snapshot tests add
+maintenance; (−) an event/streaming contract between layers must be kept stable.
+
+[cols="2,1,1,1",options="header"]
+|===
+| Criterion | Decoupled TUI (chosen) | UI-coupled engine (baseline) | Note
+| Reusability | +1 | -1 | Engine serves three channels.
+| Maintainability | +1 | 0 | UI evolves independently.
+| Simplicity | -1 | +1 | Extra event contract.
+| Confirmed channel priority | ? | 0 | Needs team — Q1.3 / Q1.6.
+|===

@@ -1,0 +1,327 @@
+= Architecture Documentation — Mistral Vibe
+:toc: left
+:toclevels: 3
+:sectnums:
+:revnumber: recovered from source v2.9.6
+
+Recovered from source code following arc42. Diagrams are PlantUML; building
+blocks use C4 macros from a local include (`docs/_includes/C4-local.puml`).
+Claims needing stakeholder confirmation are marked `[OPEN — see Q-X.Y]`.
+
+== Introduction and Goals
+
+Mistral Vibe is Mistral's open-source CLI coding assistant: a conversational,
+tool-using agent over a developer's codebase, run from the terminal
+(`README.md:20-22`). It reads, searches, edits, and runs code through natural
+language, keeps the developer in control via permissions and a trust gate, and
+extends through skills, subagents, MCP servers, and connectors.
+
+Top quality goals, by code signal (authoritative ranking `[OPEN — see Q4.9]`):
+
+[cols="1,2",options="header"]
+|===
+| Quality goal | Why it shows in the code
+| Maintainability | Hexagonal ports, strict Pyright, ruff, vulture, mirrored tests.
+| Security | Trust-folder gate, tool permissioning, keyring credentials.
+| Usability | Rich Textual TUI, autocompletion, onboarding wizard.
+|===
+
+== Constraints
+
+* Python >= 3.12 (`pyproject.toml:6`).
+* `uv`-managed; never bare `pip`/`python` (`AGENTS.md:9`).
+* Strict Pyright gates CI; no relative imports; no inline `type: ignore`
+(`AGENTS.md:41-43`, `pyproject.toml:165`).
+* UNIX is the supported target; Windows best-effort (`README.md:24-25`).
+* Apache-2.0 licence (`pyproject.toml:7`).
+
+== Context and Scope
+
+Mistral Vibe runs on the developer's machine and talks to several external
+systems.
+
+[plantuml,context,svg]
+----
+@startuml
+!include _includes/C4-local.puml
+title System Context — Mistral Vibe
+
+Person(dev, "Developer", "Codes from the terminal")
+System_Ext(script, "Automation Script", "Drives vibe -p in CI")
+System_Ext(ide, "IDE / ACP Client", "Embeds the agent")
+
+System(vibe, "Mistral Vibe", "CLI coding assistant")
+
+System_Ext(api, "LLM APIs", "Mistral / Anthropic / OpenAI / Vertex")
+System_Ext(mcp, "MCP Servers / Connectors", "Extra tools")
+System_Ext(cloud, "Vibe Code Cloud", "Teleport target")
+System_Ext(host, "Local OS", "Shell, filesystem, keyring")
+System_Ext(reg, "PyPI / GitHub", "Update checks")
+
+Rel(dev, vibe, "Uses interactively", "Textual TUI")
+Rel(script, vibe, "Runs", "vibe -p")
+Rel(ide, vibe, "Drives", "ACP JSON-RPC")
+Rel(vibe, api, "Sends prompts", "HTTPS")
+Rel(vibe, mcp, "Invokes tools", "stdio / HTTP")
+Rel(vibe, cloud, "Teleports session", "HTTPS / WS")
+Rel(vibe, host, "Runs commands, edits files")
+Rel(vibe, reg, "Checks for updates", "HTTPS")
+@enduml
+----
+
+== Solution Strategy
+
+* *Hexagonal ports and adapters* — abstract interfaces use a `_port.py` suffix;
+adapters plug behind them (`AGENTS.md:23`).
+* *Streaming async agent loop* — one `asyncio` loop with a middleware pipeline
+mediates each turn (`vibe/core/agent_loop.py`, `vibe/core/middleware.py`).
+* *Pluggable LLM backends* — a factory selects Mistral / Anthropic / OpenAI /
+Vertex (`vibe/core/llm/backend/factory.py`).
+* *TUI decoupled from engine* — `vibe/cli` (Textual) depends on `vibe/core`,
+never the reverse.
+
+Rationale and rejected alternatives are `[OPEN — see Q3.9]`; ADRs are
+"Accepted (inferred)".
+
+== Building Block View
+
+=== Level 1 — containers
+
+[plantuml,building-blocks-l1,svg]
+----
+@startuml
+!include _includes/C4-local.puml
+title Building Blocks (Level 1) — Mistral Vibe
+
+Person(dev, "Developer")
+System_Ext(api, "LLM APIs")
+
+Container_Boundary(vibe, "Mistral Vibe") {
+  Container(cli, "CLI / TUI", "Python, Textual", "vibe/cli — interactive UI")
+  Container(acp, "ACP Bridge", "Python", "vibe/acp — IDE protocol server")
+  Container(setup, "Setup Wizards", "Python", "vibe/setup — first run")
+  Container(core, "Core Engine", "Python, asyncio", "vibe/core — agent loop, tools, config")
+}
+
+Rel(dev, cli, "Uses")
+Rel(cli, core, "Drives")
+Rel(acp, core, "Drives")
+Rel(setup, core, "Initializes config")
+Rel(core, api, "Calls", "HTTPS")
+@enduml
+----
+
+`vibe/core` is the engine; `vibe/cli` the Textual TUI; `vibe/acp` the ACP
+bridge; `vibe/setup` the first-run wizards (`AGENTS.md:5`).
+
+=== Level 2 — inside the Core Engine
+
+[plantuml,building-blocks-l2,svg]
+----
+@startuml
+!include _includes/C4-local.puml
+title Building Blocks (Level 2) — Core Engine
+
+Container_Boundary(core, "vibe/core") {
+  Component(loop, "Agent Loop", "asyncio", "Orchestrates a turn")
+  Component(mw, "Middleware Pipeline", "Python", "Auto-compact, limits, read-only")
+  Component(tools, "Tool Manager", "Python", "Builtins + MCP + connectors")
+  Component(llm, "LLM Backends", "Python", "Factory + adapters")
+  Component(cfg, "Config", "Pydantic, TOML", "Layered, trust-gated")
+  Component(sess, "Sessions", "Python", "Persist, resume, rewind")
+  Component(skills, "Skills & Agents", "Python", "Profiles, subagents")
+  Component(tele, "Telemetry & Teleport", "Python", "OTel, cloud handoff")
+}
+
+Rel(loop, mw, "Runs each turn through")
+Rel(loop, llm, "Streams from")
+Rel(loop, tools, "Invokes")
+Rel(loop, sess, "Persists to")
+Rel(loop, cfg, "Reads")
+Rel(tools, skills, "Loads")
+Rel(loop, tele, "Reports to")
+@enduml
+----
+
+== Runtime View
+
+One agent turn: the loop builds the message list, passes it through the
+middleware pipeline, streams the LLM response, runs permitted tool calls, feeds
+results back, and persists the turn.
+
+[plantuml,runtime-turn,svg]
+----
+@startuml
+title Runtime — one agent turn
+actor Developer
+participant "Agent Loop" as Loop
+participant "Middleware" as MW
+participant "LLM Backend" as LLM
+participant "Permissions" as Perm
+participant "Tool" as Tool
+participant "Session Log" as Log
+
+Developer -> Loop : prompt
+Loop -> MW : run pipeline
+MW --> Loop : action (continue / reset / stop)
+Loop -> LLM : stream messages
+LLM --> Loop : assistant text + tool calls
+loop per tool call
+  Loop -> Perm : resolve permission
+  alt allowed
+    Perm --> Loop : allow
+    Loop -> Tool : run
+    Tool --> Loop : result
+  else denied
+    Perm --> Loop : deny
+    Loop -> Loop : report refusal
+  end
+end
+Loop -> Log : persist turn
+Loop --> Developer : reply
+@enduml
+----
+
+ACP-session and teleport sequences are `[OPEN — see Q3.6]`.
+
+== Deployment View
+
+[plantuml,deployment,svg]
+----
+@startuml
+title Deployment — Mistral Vibe
+node "Developer Machine" {
+  artifact "mistral-vibe\n(PyPI / uv / PyInstaller binary)" as app
+  database "~/.vibe\nconfig, sessions, logs, keyring" as home
+  app --> home
+}
+cloud "Mistral / LLM APIs" as api
+cloud "Vibe Code Cloud" as vc
+cloud "PyPI / GitHub" as reg
+app --> api : HTTPS
+app ..> vc : HTTPS / WS (teleport)
+app ..> reg : HTTPS (update check)
+@enduml
+----
+
+Vibe ships as a PyPI package, a curl install script, and a PyInstaller binary
+(`pyproject.toml:75-88`, `vibe-acp.spec`, `pyinstaller/`, `flake.nix`). It runs
+entirely locally; only the optional teleport reaches a remote service.
+
+== Crosscutting Concepts
+
+=== 8.1 Threat Model (STRIDE)
+
+A coding agent that runs shell commands and edits files is a high-trust
+surface. Threats below carry T-IDs.
+
+[cols="1,1,3",options="header"]
+|===
+| T-ID | STRIDE | Threat
+| T-001 | Tampering | A malicious project-local `.vibe/config.toml` or `AGENTS.md` alters agent behaviour when a folder is opened.
+| T-002 | Elevation of Privilege | The `bash` tool runs an arbitrary destructive command.
+| T-003 | Tampering / EoP | Prompt injection from tool output or a fetched URL makes the agent run unintended actions.
+| T-004 | Information Disclosure | API keys or credentials leak via logs, session files, or telemetry.
+| T-005 | Spoofing | A rogue MCP server impersonates a trusted tool source.
+| T-006 | Information Disclosure | A teleported session uploads private code to the cloud.
+| T-007 | Repudiation | No durable audit trail of which tool actions ran with whose approval.
+| T-008 | Denial of Service | Runaway agent loop burns unbounded LLM cost / tokens.
+|===
+
+=== 8.2 Security
+
+Each mitigation references the T-IDs it closes.
+
+[cols="2,3",options="header"]
+|===
+| Mitigation | Closes
+| Trust-folder gate: project-local config loads only for trusted folders (`vibe/core/trusted_folders.py`, `vibe/cli/entrypoint.py:129-155`; `UntrustedLayerError` in `vibe/core/config/layer.py:25-29`). | T-001
+| Tool permission system: allow / deny / ask rules and arity checks before any action (`vibe/core/tools/permissions.py`, BR-013/BR-014). | T-002, T-003
+| Credential storage in the OS keyring, not plaintext (`keyring` dependency, `vibe/core/auth/crypto.py`). | T-004
+| MCP servers are opt-in via explicit config and disabled-by-default patterns (`vibe/core/tools/mcp_settings.py`). | T-005
+| Teleport is behind a hidden, opt-in flag (`vibe/cli/entrypoint.py:107-108`). | T-006
+| Telemetry is configurable / disablable (`enable_telemetry`, `vibe/core/telemetry/`). | T-004
+| Price and turn limits via middleware (`PriceLimitMiddleware`, `TurnLimitMiddleware`). | T-008
+| A durable, structured audit trail of approvals is `[OPEN — see Q5.3]`. | T-007 (residual)
+|===
+
+=== 8.3 Test
+
+The testing pyramid: 228 test files under `tests/` — unit tests dominate
+(per-module, mirroring source); integration tests under `tests/e2e/` spawn the
+CLI; `pytest-textual-snapshot` covers the TUI. Stack: `pytest`,
+`pytest-asyncio`, `respx` (HTTP mocking), test doubles named `Fake*` in
+`tests/stubs/` (`AGENTS.md:80-85`). Tests currently do not cite UC/BR IDs;
+traceability is `[OPEN — see Q2.5]`.
+
+=== 8.4 Observability
+
+* *Logs* — stdlib `logging` with a `StructuredLogFormatter`; level via
+`LOG_LEVEL`, rotation via `LOG_MAX_BYTES`, written to `~/.vibe/logs/vibe.log`
+(`vibe/core/logger.py`, `AGENTS.md:68-70`).
+* *Traces* — OpenTelemetry spans (`vibe/core/tracing.py`; `opentelemetry-*`
+dependencies; OTLP HTTP exporter).
+* *Metrics / telemetry* — anonymous telemetry, opt-out via `enable_telemetry`
+(`vibe/core/telemetry/`).
+* *Audit trail* — no durable per-action audit log; see T-007.
+
+=== 8.5 Error Handling
+
+* *Retry* — `vibe/core/utils/retry.py` wraps transient failures.
+* *Limits as circuit breaker* — price/turn-limit middleware interrupts a
+runaway loop (`vibe/core/middleware.py`).
+* *Fallback* — `read_safe` decodes files through UTF-8 → BOM → locale →
+`charset_normalizer`, replacing undecodable bytes rather than crashing
+(`AGENTS.md:75-77`).
+* *Recovery* — sessions persist and resume; rewind undoes turns
+(`vibe/core/session/`, `vibe/core/rewind/`).
+* *Structured exceptions* — module-local hierarchies, always chained with
+`raise ... from e`, with a `_fmt()` helper for human output (`AGENTS.md:71`).
+
+=== 8.6 Configuration
+
+Layered TOML: built-in defaults → `~/.vibe/config.toml` → project
+`./.vibe/config.toml`; closer layers override, untrusted layers are refused
+(`vibe/core/config/layer.py`, `schema.py`). Env vars `VIBE_*` override any
+field; `VIBE_HOME` relocates the home directory.
+
+== Architecture Decisions
+
+Five inferred ADRs are recorded in `architecture-decisions.adoc` (ADR-001…005),
+all Status "Accepted (inferred)" pending `[OPEN — see Q3.9]`.
+
+== Quality Requirements
+
+Measurable quality scenarios and targets (startup-time SLA, per-turn latency,
+memory ceiling) are `[OPEN — see Q3.10]`. The quality-goal ranking is
+`[OPEN — see Q4.9]`.
+
+== Risks and Technical Debt
+
+* `ruff` runs in `preview` mode with several `per-file-ignores`
+(`pyproject.toml:134,159-162`) — lint surface may shift.
+* Teleport is shipped behind a hidden flag — unfinished/experimental.
+* ~40 runtime dependencies; curl-pipe-to-bash install is a supply-chain surface
+(`[OPEN — see Q5.4]`).
+* Operational failure modes are undocumented (`[OPEN — see Q5.3]`).
+
+== Glossary
+
+[cols="1,3",options="header"]
+|===
+| Term | Meaning
+| Agent | A configured behaviour profile that drives the assistant.
+| Agent Profile | Named config of system prompt + permitted tools (`default`, `plan`, `accept-edits`, `auto-approve`, `lean`).
+| Subagent | A delegated, independent agent (e.g. `explore`) invoked via the `task` tool.
+| Tool | An action the assistant can take: a builtin, or one from an MCP server or connector.
+| Skill | A reusable instruction set, optionally exposed as a slash command.
+| Connector | A built-in integration that exposes tools.
+| MCP Server | An external Model Context Protocol server supplying extra tools.
+| Middleware | A pipeline stage mediating each turn (auto-compact, limits, read-only).
+| Backend | An LLM provider adapter (Mistral, Anthropic, OpenAI, Vertex).
+| Session | One persisted, resumable conversation.
+| Teleport / Nuage | Handing a local session off to the Vibe Code cloud.
+| Trust Folder | A directory with a recorded decision on loading its project config.
+| Harness Files | User- and project-level files (`AGENTS.md`) injected into context.
+| Scratchpad | A working buffer the agent uses within a turn.
+|===

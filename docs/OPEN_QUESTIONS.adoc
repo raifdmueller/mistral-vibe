@@ -1,0 +1,64 @@
+= Open Questions — Mistral Vibe Theory Recovery
+:toc: left
+:sectnums:
+
+This is the handoff document of Phase 1. Each question below could not be
+answered from source code. Questions are routed by the role best placed to
+answer them. The team answers these; Phase 2 then synthesizes documentation
+from the completed tree. Every question keeps its Q-ID for traceability.
+
+NOTE: For this experiment run no team is available. Phase 2 documents therefore
+mark each dependent claim `[OPEN — see Q-X.Y]` rather than inventing answers,
+and ADRs carry Status "Accepted (inferred)".
+
+== Product Owner
+
+* *Q1.2.1* — Are there distinct user personas beyond a generic "developer"
+(for example: solo open-source maintainer, enterprise team member, CI
+operator)? What are their goals and skill levels?
+* *Q1.4* — Why was Mistral Vibe built? What is the strategic motivation and
+market position relative to other CLI coding assistants?
+* *Q1.5* — Which metric defines product success (adoption, retention,
+task-completion rate, conversion to the cloud product)?
+* *Q1.6* — What is the priority order across developer segments
+(individual vs. team vs. CI/automation)?
+* *Q4.9* — Across the ISO 25010 characteristics, which one has top priority
+when trade-offs are forced? (Code signals suggest Maintainability and Security.)
+
+== Architect
+
+* *Q3.6* — Confirm the runtime ordering for the ACP-session and teleport
+sequences, especially error-path and cancellation edges.
+* *Q3.9* — For each inferred ADR, confirm the rationale and the alternatives
+that were actually rejected.
+* *Q3.10* — What are the measurable quality scenarios and targets
+(startup-time SLA, per-turn latency budget, memory ceiling)?
+* *Q4.2* — Is there a stated startup-time or turn-latency budget?
+* *Q4.9* — (shared with Product Owner) Confirm the quality-goal ranking.
+* *Q5.5* — What are the known performance ceilings on very large repositories
+(file-indexing cost, context size)?
+
+== Developer
+
+* *Q2.3* — For each technical interface (CLI flags, the `vibe-acp` JSON-RPC
+surface, `config.toml`/`agents`/`mcp_servers` file formats, session-log
+format) provide formal input/validation rules, output, and status/error
+codes.
+* *Q2.5* — Author Gherkin acceptance criteria for the use cases and trace each
+to its UC and BR IDs; the existing 228 test files are not written this way.
+* *Q2.6* — Confirm the consolidated Business-Rule register and assign stable
+BR-IDs beyond BR-013/BR-014.
+
+== Domain Expert
+
+* No open questions for this role. The domain (a developer-facing coding
+assistant) is fully visible in the use cases and entity model; no specialist
+domain knowledge outside the code is required.
+
+== Operations
+
+* *Q5.3* — Document operational failure modes and their handling: corrupt
+session logs, keyring unavailable, LLM API outage, network loss during
+teleport.
+* *Q5.4* — Is there dependency scanning or an SBOM process for the ~40 runtime
+dependencies and the curl-pipe-to-bash install path?
