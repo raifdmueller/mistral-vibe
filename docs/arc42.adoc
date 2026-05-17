@@ -4,9 +4,9 @@
 :sectnums:
 
 NOTE: Synthesized in Phase 2 from `QUESTION_TREE.adoc`. Diagrams are PlantUML.
-Building-block diagrams use the C4-PlantUML standard library via a local
-`!include` (see `docs/c4/README.adoc`). Version 2.9.6. Claims needing team
-input are marked `[OPEN — see Q-X.Y]`.
+Building-block diagrams use the C4-PlantUML standard library bundled with
+PlantUML, via the `!include <C4/...>` stdlib form. Version 2.9.6. Claims
+needing team input are marked `[OPEN — see Q-X.Y]`.
 
 == Introduction and Goals
 
@@ -98,7 +98,7 @@ agent loop never knows which provider it talks to
 [plantuml]
 ----
 @startuml
-!include c4/C4_Container.puml
+!include <C4/C4_Container>
 Person(dev, "Developer")
 System_Boundary(vibe, "Mistral Vibe") {
   Container(cli, "CLI / Textual TUI", "Python, textual", "Interactive terminal UI")
@@ -123,7 +123,7 @@ Rel(core, mcp, "tool calls")
 [plantuml]
 ----
 @startuml
-!include c4/C4_Component.puml
+!include <C4/C4_Component>
 Container_Boundary(core, "Core") {
   Component(loop, "Agent Loop", "agent_loop.py", "Turn orchestration")
   Component(tools, "Tool Subsystem", "tools/", "12 builtins + MCP + connectors")
