@@ -1,0 +1,149 @@
+= Open Questions — Socratic Code-Theory Recovery
+:toc: left
+:toclevels: 2
+
+== About this document
+
+These are the `[OPEN]` leaves of `QUESTION_TREE.adoc` — questions that *cannot*
+be answered from the Mistral Vibe code or configuration. This is the
+*"Between Phases"* hand-off of the Socratic Code-Theory Recovery workflow.
+
+*Action required:* route each section below to the named role. Each question is
+answerable in 1–3 sentences. Once answers are collected, Phase 2 (synthesis of
+PRD, Specification, arc42, and ADRs) can proceed — answers will be marked
+`(team answer)` and code-derived claims keep their `file:line` citations.
+
+Each entry shows its Q-ID (traceable back to `QUESTION_TREE.adoc`) and Category.
+
+== For: Product Owner
+
+[cols="1,3,1",options="header"]
+|===
+| Q-ID | Question | Category
+
+| Q1.2.3
+| Who are the business stakeholders of Mistral Vibe, and what is the
+  commercial relationship between the free Apache-2.0 CLI and the paid Mistral
+  API it depends on?
+| business-context
+
+| Q1.4
+| What is the product strategy behind Mistral Vibe, and why is it released as
+  open source?
+| business-context
+
+| Q1.5
+| How is the product's success measured (e.g. which adoption or usage metrics
+  matter, and what are their targets)?
+| business-context
+
+| Q2.7.1
+| Are there acceptance criteria for the product defined outside the automated
+  test suite (e.g. a BDD/Gherkin spec or a definition of done)?
+| design-rationale
+
+| Q5.4
+| What is the product roadmap, and are any current features or flags planned
+  for deprecation?
+| future-direction
+|===
+
+== For: Architect
+
+[cols="1,3,1",options="header"]
+|===
+| Q-ID | Question | Category
+
+| Q2.8
+| What is the rationale for key functional rules — specifically, why are
+  `ask_user_question` and `exit_plan_mode` disabled in programmatic mode, and
+  why does programmatic mode force the `auto-approve` agent?
+| design-rationale
+
+| Q3.4
+| What were the driving forces behind the overall solution strategy
+  (hexagonal ports/adapters, Textual TUI, async, layered configuration)?
+| design-rationale
+
+| Q3.9.1
+| Why was Textual chosen as the UI framework, and what alternatives were
+  considered?
+| design-rationale
+
+| Q3.9.2
+| Why is the codebase structured around the hexagonal ports/adapters pattern
+  (the `_port.py` / `adapters/` convention)?
+| design-rationale
+
+| Q3.9.3
+| Why does Vibe support multiple LLM backends (Mistral, generic, Anthropic,
+  Vertex, OpenAI-responses) rather than a single one?
+| design-rationale
+
+| Q3.9.4
+| Why was a layered, merge-strategy-driven configuration system chosen over a
+  simpler flat configuration?
+| design-rationale
+
+| Q3.9.5
+| Why is ACP shipped as a separate `vibe-acp` entrypoint rather than as an
+  embedded mode of the main CLI?
+| design-rationale
+
+| Q4.6.1
+| What is the security threat model for Vibe, and which threats are considered
+  in scope?
+| quality-goals
+
+| Q4.9
+| Which ISO/IEC 25010 quality goals are prioritized, in what order, and what
+  are their acceptance thresholds?
+| quality-goals
+
+| Q5.2
+| What known architectural risks are the maintainers currently tracking?
+| future-direction
+
+| Q5.3
+| Which security risks are knowingly accepted as residual risk?
+| quality-goals
+|===
+
+== For: Developer
+
+[cols="1,3,1",options="header"]
+|===
+| Q-ID | Question | Category
+
+| Q5.2
+| From a code-level perspective, what are the most fragile or
+  highest-maintenance areas of the codebase? (shared with Architect)
+| future-direction
+
+| Q5.5.1
+| What is the target test-coverage level, and which areas of the code are
+  intentionally left untested?
+| quality-goals
+|===
+
+== For: Operations
+
+[cols="1,3,1",options="header"]
+|===
+| Q-ID | Question | Category
+
+| Q4.5.1
+| What are the reliability and availability targets or operational SLOs for
+  Vibe (including its dependence on the Mistral API)?
+| quality-goals
+
+| Q4.6.1
+| From an operational standpoint, what is the threat model and which threats
+  are in scope? (shared with Architect)
+| quality-goals
+
+| Q5.3
+| Which security risks are knowingly accepted as residual risk? (shared with
+  Architect)
+| quality-goals
+|===

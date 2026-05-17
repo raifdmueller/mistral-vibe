@@ -1,0 +1,326 @@
+= Question Tree — Socratic Code-Theory Recovery
+:toc: left
+:toclevels: 3
+
+== About this document
+
+This is the *Phase 1* output of the Socratic Code-Theory Recovery workflow
+(Phase 0.5 of the Semantic Anchors brownfield process). It recovers the mental
+model of the *Mistral Vibe* bounded context — an open-source Python CLI coding
+agent — through recursive question decomposition *before* any documentation is
+synthesized.
+
+* *Bounded context:* the whole `mistral-vibe` repository, treated as one
+  context (the Vibe coding agent). Its four top-level modules — `vibe/core`,
+  `vibe/cli`, `vibe/acp`, `vibe/setup` — could each be recursively decomposed
+  further if a finer-grained context boundary is desired.
+* *Decomposition anchors:* arc42 (Q3), Cockburn Use Cases (Q2),
+  ISO/IEC 25010 (Q4), Nygard ADRs (Q3.9).
+* *Leaf legend:*
+** `[ANSWERED]` — derivable from code/config; evidence cited as `file:line`
+   or `file::symbol`.
+** `[OPEN]` — not derivable from code; tagged with a Category and an Ask role.
+   See `OPEN_QUESTIONS.adoc`.
+
+Stop rule: a branch stops decomposing when a question is answerable with a
+single code reference or a single stakeholder fact.
+
+== Q1 — What problem does this bounded context solve, and for whom?
+
+=== Q1.1 — What is the product's core purpose?
+`[ANSWERED]` A command-line coding assistant powered by Mistral's models,
+providing a conversational interface to a codebase.
+Evidence: `README.md:20-22`, `pyproject.toml:4` (`description = "Minimal CLI
+coding agent by Mistral"`).
+
+=== Q1.2 — Who are the users and consuming systems?
+
+==== Q1.2.1 — Who is the primary human actor?
+`[ANSWERED]` A developer working in a local project directory.
+Evidence: `README.md:225-261`, `docs/use_cases.puml` (actor `developer`).
+
+==== Q1.2.2 — What external systems consume the product?
+`[ANSWERED]` Code editors / IDEs via the Agent Client Protocol
+(`vibe/acp/entrypoint.py`); CI pipelines via a GitHub composite Action
+(`action.yml`); scripts via programmatic mode (`vibe/core/programmatic.py`).
+
+==== Q1.2.3 — Who are the business stakeholders and what is the business model?
+`[OPEN]` Category: business-context. Ask role: Product Owner.
+Code reveals a free, Apache-2.0 CLI that calls a paid Mistral API; the
+commercial relationship between the open-source tool and the platform is not
+derivable from code.
+
+=== Q1.3 — What user goals does the product support?
+`[ANSWERED]` Thirteen use-case-level goals already recovered.
+Evidence: `docs/use_cases.puml`, `docs/use_cases/UC-001..UC-013`.
+
+=== Q1.4 — What is the product strategy, and why is it open-source?
+`[OPEN]` Category: business-context. Ask role: Product Owner.
+
+=== Q1.5 — How is product success measured?
+`[OPEN]` Category: business-context. Ask role: Product Owner.
+Telemetry is collected (`vibe/core/telemetry/`), but which metrics define
+success, and their targets, are not in code.
+
+== Q2 — What is the specification of this bounded context?
+
+Decomposed with Cockburn Use Case anchors (Primary Actor, Trigger, Main Success
+Scenario, Extensions, Postconditions).
+
+=== Q2.1 — What are the use cases?
+`[ANSWERED]` Thirteen use cases (UC-001 … UC-013).
+Evidence: `docs/use_cases/` directory.
+
+=== Q2.2 — Cockburn elements per use case
+
+==== Q2.2.1 — Primary actors
+`[ANSWERED]` Evidence: each `docs/use_cases/UC-*.md` "Primary Actor" field.
+
+==== Q2.2.2 — Triggers
+`[ANSWERED]` CLI flags and positional prompt: `vibe/cli/entrypoint.py:19-126`.
+Slash commands: `vibe/cli/commands.py:52-177`. ACP setup flag:
+`vibe/acp/entrypoint.py:30-37`.
+
+==== Q2.2.3 — Main success scenarios
+`[ANSWERED]` Agent turn loop: `vibe/core/agent_loop.py::AgentLoop` (class at
+`agent_loop.py:221`, `act()` generator). Per-use-case narratives in
+`docs/use_cases/`.
+
+==== Q2.2.4 — Extensions / alternative flows
+`[ANSWERED]` Evidence: "Alternative Flows" sections in `docs/use_cases/UC-*.md`;
+middleware short-circuits in `vibe/core/middleware.py`.
+
+==== Q2.2.5 — Postconditions
+`[ANSWERED]` Evidence: "Postconditions" sections in `docs/use_cases/UC-*.md`;
+session persistence in `vibe/core/session/session_logger.py`.
+
+=== Q2.3 — What is the CLI specification (flags and commands)?
+`[ANSWERED]` `vibe` entrypoint args: `vibe/cli/entrypoint.py:32-125`
+(`--prompt`, `--max-turns`, `--max-price`, `--enabled-tools`, `--output`,
+`--agent`, `--setup`, `--workdir`, `--trust`, `--continue`, `--resume`,
+`--teleport`). `vibe-acp` args: `vibe/acp/entrypoint.py:30-37`.
+
+=== Q2.4 — What tools does the agent expose?
+`[ANSWERED]` Built-in tools: `vibe/core/tools/builtins/` — `bash`, `grep`,
+`read_file`, `write_file`, `search_replace`, `todo`, `task`,
+`ask_user_question`, `exit_plan_mode`, `skill`, `webfetch`, `websearch`.
+Tool names are derived from class names via `vibe/core/tools/base.py:336-338`.
+Plus MCP-server tools and connector tools (`vibe/core/tools/mcp/`,
+`vibe/core/tools/connectors/`).
+
+=== Q2.5 — What are the data models?
+`[ANSWERED]` Domain entities recovered in `docs/entity_model.md`. Source models:
+`vibe/core/config/_settings.py` (configuration), `vibe/core/types.py`
+(`ScheduledLoop`, `SessionMetadata`, `LLMMessage`, `AgentStats`),
+`vibe/core/agents/models.py` (`AgentProfile`), `vibe/core/skills/models.py`,
+`vibe/core/hooks/models.py`.
+
+=== Q2.6 — What are the output formats and protocol contracts?
+`[ANSWERED]` Programmatic output formats `text` / `json` / `streaming`:
+`vibe/cli/cli.py:73-81`, `vibe/core/output_formatters.py`. ACP protocol contract:
+`vibe/acp/` (`agent-client-protocol==0.9.0`, `pyproject.toml:29`).
+
+=== Q2.7 — What acceptance criteria / intended behaviors are codified?
+`[ANSWERED]` A broad test suite encodes intended behavior:
+`tests/` (unit, snapshot, e2e under `tests/snapshots/`, `tests/mock/`).
+
+==== Q2.7.1 — Are there acceptance criteria documented outside the tests?
+`[OPEN]` Category: design-rationale. Ask role: Product Owner.
+No Gherkin/BDD specs or acceptance-criteria documents were found.
+
+=== Q2.8 — What is the rationale behind non-obvious functional rules?
+`[OPEN]` Category: design-rationale. Ask role: Architect.
+Examples requiring rationale: why `ask_user_question` and `exit_plan_mode` are
+disabled in programmatic mode (`vibe/cli/cli.py:213-217`); why programmatic mode
+forces the `auto-approve` agent (`vibe/cli/cli.py:46-48`).
+
+== Q3 — What is the architecture of this bounded context?
+
+Decomposed with the arc42 twelve-chapter anchor.
+
+=== Q3.1 — Introduction and Goals
+`[ANSWERED]` Purpose and feature set: `README.md:92-177`. Top-level quality
+goal priorities are `[OPEN]` — see Q4.9.
+
+=== Q3.2 — Constraints
+`[ANSWERED]` Python ≥ 3.12 (`pyproject.toml:21`); managed exclusively with `uv`
+(`AGENTS.md` "Commands"); UNIX officially targeted, Windows best-effort
+(`README.md:24-25`); Apache-2.0 license (`LICENSE`, `pyproject.toml:14`);
+coding-style constraints (`AGENTS.md` "Python style").
+
+=== Q3.3 — Context and Scope
+`[ANSWERED]` External dependencies: Mistral API (LLM, transcription, TTS,
+telemetry); MCP servers; ACP clients; PyPI and GitHub (update checks —
+`vibe/cli/update_notifier/`); OTel collector (`vibe/core/tracing.py`).
+
+=== Q3.4 — Solution Strategy
+`[ANSWERED]` (structure) Hexagonal-style ports/adapters (`_port.py` suffix,
+`AGENTS.md`); Textual TUI; async (`anyio`/`asyncio`); layered configuration.
+Rationale for these choices is `[OPEN]` — see Q3.9.
+
+=== Q3.5 — Building Block View
+`[ANSWERED]` Four top-level modules (`AGENTS.md:5`): `vibe/core` (engine: agent
+loop, tools, LLM backends, config), `vibe/cli` (Textual TUI), `vibe/acp` (ACP
+bridge), `vibe/setup` (first-run wizards).
+
+=== Q3.6 — Runtime View
+`[ANSWERED]` `AgentLoop` orchestrates turns (`vibe/core/agent_loop.py:221`),
+running each turn through a middleware pipeline
+(`vibe/core/agent_loop.py:281-282`, `vibe/core/middleware.py:218`). Deferred
+heavy initialization runs on a background thread
+(`vibe/core/agent_loop.py:241-246`, `:349-354`).
+
+=== Q3.7 — Deployment View
+`[ANSWERED]` Install via `uv tool install` / `pip` / `install.sh`
+(`README.md:27-55`, `scripts/install.sh`); standalone PyInstaller binaries
+(`pyinstaller/`, `vibe-acp.spec`, `distribution/`); GitHub composite Action
+(`action.yml`). Two console entrypoints: `vibe`, `vibe-acp`
+(`pyproject.toml:73-75`).
+
+=== Q3.8 — Crosscutting Concepts
+`[ANSWERED]` Logging (`vibe/core/logger.py`); telemetry
+(`vibe/core/telemetry/`); OpenTelemetry tracing (`vibe/core/tracing.py`);
+layered config merge with declarative merge strategies
+(`vibe/core/config/schema.py`, `vibe/core/config/layer.py`); tool permission
+model (`vibe/core/tools/permissions.py`); trust-folder gating
+(`vibe/core/trusted_folders.py`); hooks (`vibe/core/hooks/`).
+
+=== Q3.9 — Architecture Decisions
+
+Decomposed with the Nygard ADR anchor (Context, Decision, Status, Consequences).
+Decisions are visible in code; their *rationale* is not.
+
+==== Q3.9.1 — Why was Textual chosen for the UI?
+`[OPEN]` Category: design-rationale. Ask role: Architect.
+Decision visible: `textual==8.2.4` (`pyproject.toml:48`), `vibe/cli/textual_ui/`.
+
+==== Q3.9.2 — Why the hexagonal ports/adapters pattern?
+`[OPEN]` Category: design-rationale. Ask role: Architect.
+Decision visible: `_port.py` interfaces and `adapters/` packages throughout
+`vibe/`.
+
+==== Q3.9.3 — Why support multiple LLM backends?
+`[OPEN]` Category: design-rationale. Ask role: Architect.
+Decision visible: `vibe/core/llm/backend/` (`mistral`, `generic`, `anthropic`,
+`vertex`, `openai_responses`); factory at
+`vibe/core/llm/backend/factory.py:7`.
+
+==== Q3.9.4 — Why a layered, merge-strategy-driven configuration system?
+`[OPEN]` Category: design-rationale. Ask role: Architect.
+Decision visible: `vibe/core/config/schema.py:104-141` (merge markers),
+`vibe/core/config/layer.py`.
+
+==== Q3.9.5 — Why is ACP a separate entrypoint rather than an embedded mode?
+`[OPEN]` Category: design-rationale. Ask role: Architect.
+Decision visible: distinct `vibe-acp` script (`pyproject.toml:74`),
+`vibe/acp/entrypoint.py`.
+
+==== Q3.9.6 — Are architecture decisions already documented?
+`[ANSWERED]` No. No `docs/adr/`, `decisions/`, or ADR files exist in the
+repository.
+
+=== Q3.10 — Quality Requirements
+Cross-reference: see Q4.
+
+=== Q3.11 — Risks and Technical Debt
+Cross-reference: see Q5.
+
+=== Q3.12 — Glossary
+`[ANSWERED]` Domain terms are derivable from code: _agent_ / _subagent_
+(`vibe/core/agents/models.py`), _tool_ (`vibe/core/tools/`), _skill_
+(`vibe/core/skills/`), _MCP_ (`vibe/core/tools/mcp/`), _ACP_ (`vibe/acp/`),
+_teleport_ / _Vibe Code_ (`vibe/core/teleport/`), _session_
+(`vibe/core/session/`), _harness files_ (`vibe/core/config/harness_files/`),
+_connector_ (`vibe/core/tools/connectors/`).
+
+== Q4 — What quality goals drive the design?
+
+Decomposed with the ISO/IEC 25010 anchor (eight characteristics).
+
+=== Q4.1 — Functional Suitability
+`[ANSWERED]` Encoded by the `tests/` suite (unit, snapshot, e2e).
+
+=== Q4.2 — Performance Efficiency
+`[ANSWERED]` (mechanisms) `textual-speedups` dependency
+(`pyproject.toml:49`), deferred heavy init (`vibe/core/agent_loop.py:241`),
+async I/O. Target metrics/budgets are `[OPEN]` — see Q4.9.
+
+=== Q4.3 — Compatibility
+`[ANSWERED]` Implements the MCP standard, the Agent Client Protocol, and the
+Agent Skills specification (`README.md:344`); cross-platform support
+(`README.md:24-25`).
+
+=== Q4.4 — Usability
+`[ANSWERED]` (mechanisms) Textual TUI, slash-command and `@`-path
+autocompletion (`vibe/cli/autocompletion/`), themes, onboarding wizard
+(`vibe/setup/onboarding/`). Usability acceptance targets are `[OPEN]` — see
+Q4.9.
+
+=== Q4.5 — Reliability
+`[ANSWERED]` (mechanisms) Retry helper (`vibe/core/utils/retry.py`), structured
+error types (`vibe/core/agent_loop.py:150-158`), session logging for recovery.
+
+==== Q4.5.1 — What are the reliability/availability targets or operational SLOs?
+`[OPEN]` Category: quality-goals. Ask role: Operations.
+
+=== Q4.6 — Security
+`[ANSWERED]` (mechanisms) Trust-folder gating
+(`vibe/core/trusted_folders.py`), per-tool approval and permission model
+(`vibe/core/tools/permissions.py`, `vibe/core/tools/base.py:67-92`), secret
+storage via `keyring`/`.env`.
+
+==== Q4.6.1 — What is the threat model and which threats are in scope?
+`[OPEN]` Category: quality-goals. Ask roles: Architect, Operations.
+
+=== Q4.7 — Maintainability
+`[ANSWERED]` Enforced by `ruff`, `pyright` strict, `vulture`, `pre-commit`
+(`pyproject.toml:103-156`, `.pre-commit-config.yaml`) and the conventions in
+`AGENTS.md`.
+
+=== Q4.8 — Portability
+`[ANSWERED]` UNIX-first with Windows support (`README.md:24-25`); relocatable
+home via `VIBE_HOME` (`README.md:632-647`); `flake.nix` for reproducible
+environments.
+
+=== Q4.9 — Which quality goals are prioritized, and what are their thresholds?
+`[OPEN]` Category: quality-goals. Ask roles: Architect, Product Owner.
+Code shows quality *mechanisms* but not a ranked set of quality goals with
+acceptance thresholds.
+
+== Q5 — What risks and technical debt exist?
+
+=== Q5.1 — Code-evident technical debt
+
+==== Q5.1.1 — Complexity markers and suppressions
+`[ANSWERED]` The `AgentLoop` constructor suppresses argument- and
+statement-count lint rules (`vibe/core/agent_loop.py:222`,
+`# noqa: PLR0913, PLR0915`); `run_programmatic` suppresses argument-count rules
+(`vibe/core/programmatic.py:27`).
+
+==== Q5.1.2 — Feature flags and experimental surfaces
+`[ANSWERED]` `--teleport` is hidden (`vibe/cli/cli.py:108`,
+`argparse.SUPPRESS`); `enable_experimental_hooks` and `enable_otel` are
+excluded/experimental (`vibe/core/config/_settings.py:530-534`); voice mode is
+documented as experimental (`README.md:284`).
+
+==== Q5.1.3 — Deferred-work markers
+`[ANSWERED]` `TODO(otel)` to remove an exclusion once the feature ships
+(`vibe/core/config/_settings.py:530`); legacy config migration logic retained
+(`vibe/core/config/_settings.py:994-1039`).
+
+=== Q5.2 — What are the known risks the maintainers are tracking?
+`[OPEN]` Category: future-direction. Ask roles: Architect, Developer.
+
+=== Q5.3 — Which security risks are knowingly accepted?
+`[OPEN]` Category: quality-goals. Ask roles: Architect, Operations.
+
+=== Q5.4 — What is the roadmap, and what is planned for deprecation?
+`[OPEN]` Category: future-direction. Ask role: Product Owner.
+
+=== Q5.5 — Where are the test-coverage gaps?
+`[ANSWERED]` (partially) A broad suite exists (`tests/`), but no coverage
+configuration or coverage report is present, so coverage gaps are not
+quantified in the repository.
+
+==== Q5.5.1 — What is the target test-coverage level and which areas are intentionally untested?
+`[OPEN]` Category: quality-goals. Ask role: Developer.
