@@ -1,0 +1,100 @@
+= Open Questions — Handoff to the Team
+:toc: left
+:sectnums:
+
+This is the Phase 1 handoff document. Each Open Question below could not be
+answered from source code. Questions are routed by role. Phase 2 documentation
+marks every claim that depends on these answers as `[OPEN — see Q-X.Y]`.
+
+One section per role is emitted, even when empty.
+
+== Product Owner
+
+[cols="1,3,2",options="header"]
+|===
+| Q-ID | Question | Why unanswerable from code
+
+| Q1.4-rationale
+| Why does Mistral ship an open-source CLI coding agent? What strategic goal does
+Vibe serve (adoption, model showcase, ecosystem)?
+| Code shows what Vibe does, not the business reason it exists.
+
+| Q1.5-targets
+| What are the target values for the KPIs the product already measures (cost per
+session, retention, telemetry-derived usage)?
+| Telemetry and stats are collected; no target thresholds are encoded.
+
+| Q1.6
+| Which user segment is the priority (individual OSS devs, enterprise teams,
+CI/automation users)?
+| Code ranks platforms (UNIX over Windows) but not user segments.
+
+| Q2.5-signoff
+| What is the "definition of done" / acceptance sign-off per use case UC-001…UC-021?
+| Tests assert behaviour, not a contractual acceptance gate.
+
+| Q4.9
+| Under conflict, which quality characteristic wins — Security, Reliability,
+Usability, Performance? (Shared with Architect.)
+| Code invests in many; it does not declare a priority order.
+|===
+
+== Architect
+
+[cols="1,3,2",options="header"]
+|===
+| Q-ID | Question | Why unanswerable from code
+
+| Q4.9
+| Confirm the quality-goal ranking. Code signals Security and Reliability are
+weighted heavily (denylist, trusted folders, crypto, retry) — is that the
+intended order?
+| The ranking is a design judgment, not a code fact.
+
+| Q3.9-adr
+| Confirm the rationale behind the inferred ADRs (ports-and-adapters adoption,
+Textual choice, exact pinning of `mistralai`/`agent-client-protocol`, five-backend
+factory). Were alternatives weighed?
+| ADR records do not exist; rationale is reconstructed from code shape.
+|===
+
+== Developer
+
+[cols="1,3,2",options="header"]
+|===
+| Q-ID | Question | Why unanswerable from code
+
+| Q5.1-register
+| Where is the technical-debt register? Which large modules (e.g.
+`agent_loop.py`, >1300 lines) are known debt vs. intentional?
+| No `TODO`/`FIXME` debt log was found; shortcuts are not annotated.
+|===
+
+== Domain Expert
+
+[cols="1,3,2",options="header"]
+|===
+| Q-ID | Question | Why unanswerable from code
+
+| (none)
+| No open questions for this role.
+| Domain concepts (Agent Loop, Compaction, Skills, Trust) are fully derivable
+from code and the AIUP entity model.
+|===
+
+== Operations
+
+[cols="1,3,2",options="header"]
+|===
+| Q-ID | Question | Why unanswerable from code
+
+| Q5.3-slo
+| What are the SLOs, alerting rules, and incident/on-call process for the LLM and
+update endpoints Vibe depends on?
+| No SLO or alerting config is in code; Vibe is a client, not a service.
+
+| Q5.4-sbom
+| Is there an SBOM and a dependency-CVE gate in the release pipeline? How is the
+PyPI/PyInstaller install verified?
+| No SBOM generation or signature verification was found in the build config.
+|===

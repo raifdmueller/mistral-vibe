@@ -1,0 +1,23 @@
+= C4-PlantUML standard library
+
+The arc42 building-block diagrams (`docs/arc42.adoc`, Chapter 5) use the
+C4-PlantUML standard library via a local `!include`, not the remote URL —
+Kroki cannot fetch remote includes.
+
+The release files are vendored in this directory so the includes resolve
+offline:
+
+* `C4.puml`
+* `C4_Context.puml`
+* `C4_Container.puml`
+* `C4_Component.puml`
+
+Source: https://github.com/plantuml-stdlib/C4-PlantUML (`master`, raw files).
+The arc42 diagrams reference them as, e.g.:
+
+  !include c4/C4_Container.puml
+
+`C4_Container.puml` and `C4_Component.puml` chain to `C4_Context.puml` /
+`C4.puml` via relative `./` includes, so the whole set resolves locally.
+This keeps the documentation build hermetic and reproducible under
+docToolchain.
