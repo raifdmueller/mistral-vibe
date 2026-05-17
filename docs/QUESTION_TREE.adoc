@@ -1,0 +1,341 @@
+= Question Tree — Socratic Code-Theory Recovery: Mistral Vibe
+:toc: left
+:toclevels: 3
+:sectnums:
+
+This Question Tree recovers the "theory" (Naur 1985) of the Mistral Vibe codebase
+through recursive question refinement. Phase 1 builds the tree. Each leaf is
+`[ANSWERED]` with `file:line` evidence or `[OPEN]` with a Category, an Ask role,
+and why it cannot be answered from code.
+
+The second level (Q1.1–Q5.5) is fixed. Q3.1–Q3.12 are the twelve arc42 chapters.
+Q4.1–Q4.8 are the eight ISO/IEC 25010 characteristics; Q4.9 ranks them.
+
+Scope: `vibe/` package, ~43.7k LOC Python, 228 test modules. Version 2.9.6
+(`pyproject.toml:5`).
+
+== Q1 — Problem and Users
+
+=== Q1.1 Product identity
+[ANSWERED] Mistral Vibe is "Mistral's open-source CLI coding assistant" — a
+command-line conversational coding agent powered by Mistral models.
+Evidence: `README.md:22`, `pyproject.toml:4` ("Minimal CLI coding agent by
+Mistral"), package name `mistral-vibe` (`pyproject.toml:2`).
+
+=== Q1.2 Primary users
+[ANSWERED] Software developers working in a terminal on a code project. The
+README addresses developers exploring, modifying, and interacting with their
+codebase; the entrypoint targets a TTY (`vibe/cli/terminal_detect.py`).
+Evidence: `README.md:24`, `docs/use_cases/UC-001-start-a-coding-session.md`.
+
+=== Q1.3 Channels
+[ANSWERED] Three delivery channels exist.
+(a) Interactive TUI: `vibe` console script → `vibe.cli.entrypoint:main`
+(`pyproject.toml`, project.scripts).
+(b) Programmatic / headless mode: `vibe -p "<prompt>"`
+(`vibe/core/programmatic.py`, `action.yml:54`).
+(c) ACP server: `vibe-acp` console script → `vibe.acp.entrypoint:main`, the
+Agent Client Protocol integration for editors/IDEs (`vibe/acp/`,
+`docs/acp-setup.md`).
+A GitHub Action wraps channel (b) (`action.yml`).
+
+=== Q1.4 Why built
+[ANSWERED — partial] Code shows *what*, not the strategic *why*. Vibe is an
+open-source coding agent that binds Mistral models to a terminal workflow with a
+tool sandbox. The strategic motivation (market positioning, adoption goals)
+is not derivable. See `[OPEN — Q1.4-rationale]`.
+Evidence (what): `README.md`, `vibe/core/agent_loop.py`.
+
+[OPEN — Q1.4-rationale] Category: Product strategy. Ask: Product Owner. Why: the
+business reason Mistral ships an open-source CLI agent is not in source.
+
+=== Q1.5 Success metrics
+[ANSWERED — partial] The product *measures* itself: telemetry (`enable_telemetry`
+default `True`, `vibe/core/config/_settings.py:511`, `vibe/core/telemetry/`),
+per-session cost and token stats (`AGENT_STATS` entity,
+`vibe/core/agents/models.py`), and feedback bar
+(`vibe/cli/textual_ui/widgets/feedback_bar.py`). The target *values* of any KPI
+are not in code.
+
+[OPEN — Q1.5-targets] Category: Product strategy. Ask: Product Owner. Why: no
+acceptance target (DAU, retention, NPS) is encoded.
+
+=== Q1.6 Segment priority
+[OPEN — Q1.6] Category: Product strategy. Ask: Product Owner. Why: code does not
+rank user segments. README warns Windows is unofficial and UNIX is "officially
+supported and targeted" (`README.md:27`) — a *platform* priority, not a user
+segment one; recorded here as the only code signal.
+
+== Q2 — Specification
+
+=== Q2.1 Actors
+[ANSWERED] Actors are catalogued in the existing AIUP artifact. Human actor:
+the Developer. System/secondary actors: Mistral LLM API, MCP servers,
+Connectors, the OS shell, the Git repository, Vibe Code (remote workflow
+backend), the update registry (PyPI/GitHub).
+Evidence: `docs/use_cases.puml`, `docs/use_cases/UC-*.md`,
+`vibe/core/nuage/` (Vibe Code), `vibe/core/tools/mcp/`.
+
+=== Q2.2 Use-case catalog
+[ANSWERED] 21 user-goal-level use cases already exist as AIUP artifacts and are
+referenced here, not re-derived: UC-001 start session … UC-021 trust a working
+directory. See `docs/use_cases/UC-001..UC-021.md` and `docs/use_cases.puml`.
+The Socratic Q2 branch defers to those files.
+
+=== Q2.3 Per-interface system specs
+[ANSWERED] Technical interfaces in code:
+(a) CLI flags — `vibe/cli/cli.py`, `vibe/cli/entrypoint.py` (`-p`, `--agent`,
+`--resume`, etc.).
+(b) Slash commands — `vibe/cli/commands.py`, `vibe/cli/autocompletion/slash_command.py`.
+(c) Built-in tools (12) — `vibe/core/tools/builtins/` each with a Pydantic
+arg schema (e.g. `bash.py`, `read_file.py`, `write_file.py`,
+`search_replace.py`, `grep.py`, `task.py`, `todo.py`, `webfetch.py`,
+`websearch.py`, `skill.py`, `ask_user_question.py`, `exit_plan_mode.py`).
+(d) ACP protocol surface — `vibe/acp/session.py`, `vibe/acp/commands/registry.py`.
+(e) Config file format `config.toml` — `vibe/core/config/_settings.py`.
+(f) Session log JSON format — `vibe/core/session/session_logger.py`.
+System-use-case detail (input/validation/output/status) is synthesized in
+`docs/specification.adoc`.
+
+=== Q2.4 Data / entity model
+[ANSWERED] 14 entities are catalogued in the existing AIUP artifact
+`docs/entity_model.md` (CONFIGURATION, PROVIDER, MODEL, AGENT_PROFILE, SESSION,
+SESSION_METADATA, MESSAGE, TOOL_CALL, TOOL, AGENT_STATS, SCHEDULED_LOOP, SKILL,
+MCP_SERVER, CONNECTOR, HOOK, TRUSTED_FOLDER). No relational DB; persistence is
+TOML + JSON on disk. Derived from `vibe/core/config/_settings.py`,
+`vibe/core/types.py`, `vibe/core/agents/models.py`.
+
+=== Q2.5 Acceptance criteria
+[ANSWERED — partial] Executable acceptance lives as 228 test modules under
+`tests/` (unit, tool, snapshot, e2e). Snapshot tests pin TUI output
+(`tests/snapshots/`). Gherkin-style criteria are synthesized in
+`docs/specification.adoc` from observed test behaviour. Formal sign-off criteria
+per use case are not in code.
+
+[OPEN — Q2.5-signoff] Category: Requirements. Ask: Product Owner. Why: no
+"definition of done" per UC is encoded; tests assert behaviour, not contract.
+
+=== Q2.6 Cross-cutting business rules
+[ANSWERED] Derivable rules:
+BR-1 Tool calls require approval unless the agent profile or config bypasses it
+(`vibe/core/config/_settings.py:510` `bypass_tool_permissions`,
+`vibe/core/tools/permissions.py`).
+BR-2 The `bash` tool denies interactive/editor commands and standalone
+interpreters (`vibe/core/tools/builtins/bash.py:120-147`).
+BR-3 Project-level config loads only from a trusted folder
+(`vibe/core/trusted_folders.py`, UC-021).
+BR-4 A session auto-compacts when context tokens exceed the model threshold
+(`vibe/core/config/_settings.py:375` `auto_compact_threshold=200_000`).
+BR-5 At most 50 scheduled loops per session (`vibe/core/loop.py:35`).
+BR-6 LLM/HTTP requests retry on transient errors 408/409/425/429/500/502/503/504/529
+(`vibe/core/utils/retry.py:11`).
+
+== Q3 — Architecture (arc42 chapters)
+
+=== Q3.1 Introduction and Goals
+[ANSWERED] Purpose and top features are in `README.md`; quality goals are
+synthesized in arc42 §1 and §10 from code (see Q4). Stakeholders inferred:
+Developer (user), Mistral (vendor), open-source contributors
+(`CONTRIBUTING.md`).
+
+=== Q3.2 Constraints
+[ANSWERED] Python ">=3.12" (`pyproject.toml:6`, `.python-version`); Apache-2.0
+license (`LICENSE`); UNIX officially targeted, Windows best-effort
+(`README.md:27`); dependency set pinned via `uv.lock`; `agent-client-protocol==0.9.0`
+and `mistralai==2.4.4` pinned exactly (`pyproject.toml`); line length 88, ruff +
+pyright enforced (`pyproject.toml` tool sections, `.pre-commit-config.yaml`).
+
+=== Q3.3 Context and Scope
+[ANSWERED] External systems: Mistral LLM API and other LLM providers
+(`vibe/core/llm/backend/`: anthropic, generic, mistral, openai_responses,
+vertex); MCP servers (`vibe/core/tools/mcp/`); Connectors
+(`vibe/core/tools/connectors/`); OS shell (`bash` tool); local Git repo
+(`gitpython`); Vibe Code remote workflow (`vibe/core/nuage/`); PyPI/GitHub for
+updates (`vibe/cli/update_notifier/`); OS keyring (`keyring`, `vibe/core/auth/`).
+Diagram in arc42 §3.
+
+=== Q3.4 Solution Strategy
+[ANSWERED] Layered Python package: `vibe/core` (domain + agent loop, provider-
+and UI-agnostic), `vibe/cli` (Textual TUI), `vibe/acp` (ACP server), `vibe/setup`
+(onboarding/auth). Ports-and-adapters is used at integration seams — explicit
+`ports/` + `adapters/` folders in `update_notifier`, `plan_offer`,
+`narrator_manager`, `notifications`, `voice_manager`. Async throughout (`anyio`,
+`asyncio`).
+
+=== Q3.5 Building Block View
+[ANSWERED] Top-level blocks: CLI/TUI (`vibe/cli/textual_ui/app.py`), ACP server
+(`vibe/acp/`), Agent Loop (`vibe/core/agent_loop.py`), Tool subsystem
+(`vibe/core/tools/`), LLM Backend Factory (`vibe/core/llm/backend/factory.py`),
+Config subsystem (`vibe/core/config/`), Session subsystem
+(`vibe/core/session/`), Skills (`vibe/core/skills/`), Nuage/Vibe-Code client
+(`vibe/core/nuage/`). C4 container + component diagrams in arc42 §5.
+
+=== Q3.6 Runtime View
+[ANSWERED] Main runtime flow: user prompt → `AgentLoop.run` →
+LLM backend streaming completion → tool calls → permission check → tool execution
+→ result fed back → repeat until no tool calls (`vibe/core/agent_loop.py`).
+Auto-compaction interleaves (`agent_loop.py:718-746`). Sequence diagram in
+arc42 §6.
+
+=== Q3.7 Deployment View
+[ANSWERED] Distributed as a PyPI wheel (`mistral-vibe`); installed via
+`uv tool install`, `pip`, or the `install.sh` one-liner (`README.md:35-55`).
+Also packaged as a standalone PyInstaller binary (`pyinstaller/`,
+`vibe-acp.spec`) and a Nix flake (`flake.nix`). Runs entirely on the
+developer's machine; only outbound HTTPS to LLM/MCP/update endpoints. Diagram in
+arc42 §7.
+
+=== Q3.8 Crosscutting Concepts
+[ANSWERED] Five baseline concepts derivable:
+8.1 Threat model — STRIDE catalogue derived from the trust boundary (LLM-driven
+tool calls, untrusted project folders, shell execution).
+8.2 Security — denylist (`bash.py:120-147`), trusted folders
+(`trusted_folders.py`), keyring credential storage (`auth/github.py`),
+AES-GCM + RSA-OAEP payload encryption (`auth/crypto.py`), payload size caps
+(`crypto.py:16-17`).
+8.3 Test — pyramid: 228 modules; unit + tool + snapshot (`tests/snapshots/`) +
+e2e; CI runs `pytest` then snapshot suite (`.github/workflows/ci.yml:87,116`).
+8.4 Observability — OpenTelemetry tracing (`vibe/core/tracing.py`,
+`opentelemetry-*` deps), structured logging (`vibe/core/logger.py`),
+telemetry events (`vibe/core/telemetry/`).
+8.5 Error handling — retry with backoff (`utils/retry.py`), rate-limit / non-
+retryable detection (`agent_loop.py:166-187`), tool timeout errors
+(`bash.py:460`). Detail in arc42 §8.
+
+=== Q3.9 Architecture Decisions
+[ANSWERED — partial] Decisions are *visible* in code (ports-and-adapters, exact
+pins, Textual for TUI, ACP protocol). No ADR records exist; rationale is
+inferred. See `docs/architecture-decisions.adoc` (Status "Accepted (inferred)").
+
+=== Q3.10 Quality Requirements
+[ANSWERED] Quality scenarios derived from measurable code behaviour — see Q4
+branch and arc42 §10. Quality-goal *ranking* is `[OPEN — Q4.9]`.
+
+=== Q3.11 Risks and Technical Debt
+[ANSWERED] See Q5 branch. Derivable: exact version pins risk drift; LLM-driven
+shell execution is the principal hazard; Windows unofficial.
+
+=== Q3.12 Glossary
+[ANSWERED] Terms: Agent Loop, Agent Profile, Tool, MCP Server, Connector, Skill,
+Session, Compaction, Trusted Folder, ACP, Nuage/Vibe Code, Thinking level,
+Hook. Defined in arc42 §12 from `docs/entity_model.md` and code.
+
+== Q4 — Quality Goals (ISO/IEC 25010)
+
+Quality is derived from measurable code behaviour. Each characteristic carries at
+least one `[ANSWERED]` scenario with `file:line`. Only the ranking (Q4.9) is OPEN.
+
+=== Q4.1 Functional Suitability
+[ANSWERED] 12 built-in tools, 4 agent profiles, MCP + connector extensibility,
+21 catalogued use cases. Functional completeness asserted by 228 test modules.
+Evidence: `vibe/core/tools/builtins/`, `README.md` Built-in Agents,
+`docs/use_cases/`.
+
+=== Q4.2 Performance Efficiency
+[ANSWERED] Scenario: LLM call budget — `api_timeout` default 720.0 s
+(`_settings.py:520`); bash command default timeout 300 s
+(`bash.py:225-226`); MCP startup 10.0 s, MCP tool call 60.0 s
+(`_settings.py:234-240`); project-context scan 2.0 s
+(`_settings.py:146`). Auto-compaction caps context at 200_000 tokens
+(`_settings.py:375`). Async streaming throughout (`anyio`, `agent_loop.py`).
+
+=== Q4.3 Compatibility
+[ANSWERED] Five LLM backends behind one factory
+(`vibe/core/llm/backend/factory.py`); MCP transports stdio/http/streamable-http
+(`_settings.py:229-324`); ACP 0.9.0 for editor interop; OS keyring abstraction;
+Windows + UNIX both run, UNIX targeted (`README.md:27`).
+
+=== Q4.4 Usability
+[ANSWERED] Onboarding flow (`vibe/setup/onboarding/`), autocompletion for `/`
+and `@` (`vibe/cli/autocompletion/`), persistent input history
+(`vibe/cli/history_manager.py`), snapshot tests pin TUI rendering
+(`tests/snapshots/`), update notifications and "what's new"
+(`vibe/cli/update_notifier/whats_new.py`).
+
+=== Q4.5 Reliability
+[ANSWERED] Scenario: transient LLM/HTTP failure — retry 3 tries, 0.5 s initial
+delay, ×2 backoff, on status 408/409/425/429/500/502/503/504/529
+(`utils/retry.py:11,17`). Non-retryable and rate-limit errors detected and
+surfaced (`agent_loop.py:166-187`). Sessions persisted to disk for resume
+(`vibe/core/session/resume_sessions.py`, UC-009). Session migration handles
+format drift (`session_migration.py`).
+
+=== Q4.6 Security
+[ANSWERED] Scenarios:
+(a) LLM-proposed tool call is gated by approval unless bypassed
+(`tools/permissions.py`, `_settings.py:510`).
+(b) `bash` denies interactive shells/editors and standalone interpreters
+(`bash.py:120-147`); path commands checked against the working directory
+(`bash.py:150+`, `tools/utils.is_path_within_workdir`).
+(c) Project config loads only from trusted folders (`trusted_folders.py`).
+(d) Credentials stored in OS keyring, never plaintext config (`auth/github.py`).
+(e) Remote payloads use AES-256-GCM + RSA-OAEP-SHA256, RSA key ≥2048 bits,
+ciphertext capped at 2 MiB, encrypted-key capped at 1 KiB
+(`auth/crypto.py:13-17`).
+
+=== Q4.7 Maintainability
+[ANSWERED] Ports-and-adapters seams (`*/ports/`, `*/adapters/`); ruff + pyright
++ vulture + typos enforced via pre-commit (`.pre-commit-config.yaml`,
+`pyproject.toml`); pylint limits — max 50 statements, 15 branches, 15 locals per
+function (`pyproject.toml` tool.ruff.lint.pylint); 228 test modules; mandatory
+`from __future__ import annotations` (`pyproject.toml`).
+
+=== Q4.8 Portability
+[ANSWERED] Python ≥3.12 only constraint (`pyproject.toml:6`); ships as wheel,
+PyInstaller binary, and Nix flake (`pyinstaller/`, `flake.nix`); platform branches
+isolated in `utils/platform.py` and `is_windows()` checks; `XDG`/home path
+conventions in `vibe/core/paths/`.
+
+=== Q4.9 Quality-goal priority ranking
+[OPEN — Q4.9] Category: Quality goals. Ask: Architect / Product Owner. Why: code
+shows many quality investments but does not state which characteristic wins under
+conflict. Security and Reliability are heavily coded for (denylist, trust,
+crypto, retry) — a strong signal, but not an authoritative ranking.
+
+== Q5 — Risks
+
+=== Q5.1 Technical debt
+[ANSWERED — partial] Derivable signals: `vulture` is configured, implying dead-
+code vigilance (`pyproject.toml`); large modules exist (`agent_loop.py` >1300
+lines). No explicit `TODO`/`FIXME` debt register found in the sampled core.
+Full debt inventory needs the team.
+
+[OPEN — Q5.1-register] Category: Technical debt. Ask: Developer. Why: code lacks
+a debt log; intentional shortcuts are not annotated.
+
+=== Q5.2 Security risks
+[ANSWERED] Principal risk: an LLM proposes a destructive shell command and the
+user approves it, or runs under `auto-approve` / `bypass_tool_permissions`
+(`_settings.py:510`, README "Use with caution"). Secondary: a malicious project
+folder's `AGENTS.md`/config is loaded if mistakenly trusted
+(`trusted_folders.py`). MCP servers run as child processes with inherited env
+(`_settings.py:319` env passthrough). See arc42 §8.1 STRIDE catalogue.
+
+=== Q5.3 Operational risks
+[ANSWERED — partial] LLM API outage or rate limit halts the agent; retry softens
+transient cases only (`utils/retry.py`). 720 s `api_timeout` means a hung call
+blocks the session up to 12 minutes (`_settings.py:520`). Telemetry is on by
+default (`_settings.py:511`) — a privacy/operations concern. SLO/incident
+process is not in code.
+
+[OPEN — Q5.3-slo] Category: Operations. Ask: Operations. Why: no SLO, alerting,
+or on-call process is encoded.
+
+=== Q5.4 Dependency / supply-chain risks
+[ANSWERED] `agent-client-protocol==0.9.0` and `mistralai==2.4.4` are exact pins
+and explicitly excluded from `exclude-newer` auto-bump
+(`pyproject.toml` tool.uv) — drift risk if upstream changes. `uv.lock`
+(339 KB) pins the full tree. Cryptography, keyring, mcp, textual are direct
+trust-sensitive dependencies. No SBOM or signature verification of installs
+found.
+
+[OPEN — Q5.4-sbom] Category: Supply chain. Ask: Operations. Why: code shows no
+SBOM generation or dependency-CVE gate.
+
+=== Q5.5 Scaling / performance risks
+[ANSWERED] Single-user, single-process CLI — no horizontal scaling concern.
+Risk is per-session: context growth is bounded by auto-compaction at 200_000
+tokens (`_settings.py:375`); scheduled loops capped at 50
+(`vibe/core/loop.py:35`); file indexer watches the project tree
+(`vibe/core/autocompletion/file_indexer/watcher.py`) — large repos may stress
+the watcher. Subagent delegation (`task` tool) fans out work in-process.

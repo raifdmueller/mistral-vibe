@@ -1,0 +1,205 @@
+= Specification — Mistral Vibe
+:toc: left
+:toclevels: 3
+:sectnums:
+
+NOTE: Synthesized in Phase 2 from `QUESTION_TREE.adoc`. Persona use cases already
+exist as AIUP artifacts under `docs/use_cases/` and are referenced, not
+duplicated. This document adds system use cases, business rules, acceptance
+criteria, and supplementary specifications derived from code.
+
+== Persona Use Cases (reference)
+
+The 21 user-goal-level use cases are maintained in
+`docs/use_cases/UC-001..UC-021.md` with the overview diagram
+`docs/use_cases.puml`. They cover starting a session (UC-001), conversing
+(UC-002), approving tool runs (UC-003), answering agent questions (UC-004),
+running shell commands (UC-005), switching agent profiles (UC-006), model and
+thinking selection (UC-007), context management (UC-008), session resume/rename
+(UC-009/010), configuration (UC-011), programmatic use (UC-012), skills
+(UC-013), MCP/connectors (UC-014), subagents (UC-015), voice (UC-016), scheduled
+prompts (UC-017), teleport to Vibe Code (UC-018), lean-agent install (UC-019),
+update notifications (UC-020), and trusting a directory (UC-021).
+
+This specification does not re-derive that catalogue.
+
+== System Use Cases
+
+System use cases describe the technical interfaces. Format: input/validation,
+processing, output/status, errors.
+
+=== SUC-1: CLI invocation
+
+* *Input*: command line — flags such as `-p <prompt>`, `--agent <name>`,
+`--resume`, model/thinking selectors (`vibe/cli/cli.py`,
+`vibe/cli/entrypoint.py`).
+* *Validation*: agent name resolved against known profiles; API key required —
+`MissingAPIKeyError` if absent (`vibe/core/config/_settings.py:71`).
+* *Processing*: builds `VibeConfig`, launches the Textual app or the
+programmatic runner.
+* *Output*: interactive TUI, or stdout text in `-p` mode.
+* *Errors*: missing API key, missing prompt file (`MissingPromptFileError`,
+`_settings.py:80`), untrusted folder prompt.
+
+=== SUC-2: `bash` tool call
+
+* *Input*: `{command: str, timeout?: int}` (`bash.py:248`).
+* *Validation*: command parsed with tree-sitter into sub-commands
+(`bash.py:41-64`); each checked against the denylist and standalone denylist
+(`bash.py:310-351`); path-touching commands checked against the working
+directory.
+* *Processing*: runs in a stateful subprocess with a non-interactive env
+(`CI=true`, `PAGER=cat`, `bash.py:82-96`).
+* *Output*: stdout/stderr, exit code.
+* *Status / errors*: `ToolError "Command timed out after <n>s"` on timeout
+(default 300 s, `bash.py:225,460`); `ToolError "Command denied"` on a denylist
+match (`bash.py:349`).
+
+=== SUC-3: LLM completion request
+
+* *Input*: message list + tool schemas, routed through `BACKEND_FACTORY`
+(`vibe/core/llm/backend/factory.py`, `agent_loop.py:556`).
+* *Validation / processing*: backend-specific request; streamed response.
+* *Output*: streamed assistant tokens, reasoning content, tool calls.
+* *Status / errors*: HTTP 408/409/425/429/500/502/503/504/529 retried
+(`utils/retry.py:11`); rate-limit and non-retryable errors surfaced
+(`agent_loop.py:166-187`); hard timeout at `api_timeout` 720 s
+(`_settings.py:520`).
+
+=== SUC-4: MCP server connection
+
+* *Input*: `MCPStdio` / `MCPHttp` / `MCPStreamableHttp` config block
+(`_settings.py:229-324`).
+* *Validation*: server name format alphanumeric/underscore/hyphen; transport
+enum.
+* *Processing*: connect within `startup_timeout_sec` (default 10 s); list and
+register tools prefixed by the server alias.
+* *Output*: tools added to the registry (`vibe/core/tools/mcp/registry.py`).
+* *Status / errors*: startup timeout or connection failure disables the server's
+tools; per-tool calls bounded by `tool_timeout_sec` (default 60 s).
+
+=== SUC-5: `config.toml` load
+
+* *Input*: built-in defaults + user-layer + project-layer TOML
+(`vibe/core/config/layer.py`, `_settings.py:91` `TomlFileSettingsSource`).
+* *Validation*: Pydantic models validate each field; project layer loads only
+if the folder is trusted (BR-3).
+* *Output*: a merged `VibeConfig`.
+* *Errors*: invalid TOML or schema violation raises a Pydantic
+`ValidationError`.
+
+=== SUC-6: ACP session
+
+* *Input*: ACP protocol messages over the `vibe-acp` server (`vibe/acp/session.py`).
+* *Processing*: maps ACP requests to the same agent loop; tools exposed via
+`vibe/acp/tools/`.
+* *Output*: ACP session updates (`vibe/acp/tools/session_update.py`).
+* *Errors*: `vibe/acp/exceptions.py`.
+
+== Business Rules
+
+[cols="1,4,3",options="header"]
+|===
+| ID | Rule | Evidence
+
+| BR-1 | A tool call requires user approval unless the active agent profile or
+`bypass_tool_permissions` skips it. | `_settings.py:510`,
+`vibe/core/tools/permissions.py`
+| BR-2 | The `bash` tool denies interactive shells, editors, and standalone
+interpreters (`vim`, `nano`, `python`, `bash`, `su`, …). | `bash.py:120-147`
+| BR-3 | Project-level configuration loads only from a trusted working directory.
+| `vibe/core/trusted_folders.py`, UC-021
+| BR-4 | A session auto-compacts when context tokens exceed the model's
+`auto_compact_threshold` (default 200_000). | `_settings.py:375`,
+`agent_loop.py:718-746`
+| BR-5 | At most 50 scheduled loops may run per session. | `vibe/core/loop.py:35`
+| BR-6 | Transient LLM/HTTP failures retry 3 times with exponential backoff on
+status 408/409/425/429/500/502/503/504/529. | `utils/retry.py:11,17`
+| BR-7 | Remote-payload encryption requires an RSA key of at least 2048 bits and
+caps ciphertext at 2 MiB. | `auth/crypto.py:15-17`
+|===
+
+== Acceptance Criteria (Gherkin, derived from tests)
+
+[source,gherkin]
+----
+Scenario: Tool execution waits for approval
+  Given the default agent profile is active
+  When the agent proposes a bash tool call
+  Then the user is shown an approval prompt
+  And the command runs only after approval
+# tests/test_approve_always_permanent.py, tests/tools/test_granular_permissions.py
+
+Scenario: A denylisted command is rejected
+  Given the bash tool receives the command "vim file.txt"
+  When the command is validated
+  Then it is rejected with a "Command denied" ToolError
+# tests/tools/test_bash.py, bash.py:120-147,349
+
+Scenario: A transient LLM error is retried
+  Given the LLM backend returns HTTP 503
+  When the agent loop sends the completion request
+  Then the request is retried up to 3 times with backoff
+# vibe/core/utils/retry.py, tests/test_agent_backend.py
+
+Scenario: Context auto-compacts past the threshold
+  Given a session whose context exceeds the model auto_compact_threshold
+  When the next turn begins
+  Then the conversation is compacted before the LLM call
+# tests/test_agent_auto_compact.py, agent_loop.py:718-746
+
+Scenario: Project config loads only from a trusted folder
+  Given the working directory is not yet trusted
+  When Vibe starts in that directory
+  Then the user is asked to trust it before project config is applied
+# tests/test_agent_override_resolve_permission.py, trusted_folders.py
+----
+
+Formal per-use-case sign-off criteria are `[OPEN — see Q2.5-signoff]`.
+
+== Individual Requirements (EARS)
+
+* When the agent proposes a tool call and the profile does not auto-approve,
+the system *shall* request user approval before execution.
+* While context tokens exceed the model threshold, the system *shall* compact the
+conversation before the next completion.
+* If an LLM request fails with a retryable HTTP status, the system *shall* retry
+up to 3 times with exponential backoff.
+* If a bash command matches the denylist, the system *shall* reject it with a
+`ToolError` and not execute it.
+* When a working directory has not been trusted, the system *shall not* load its
+project-level configuration.
+
+== Supplementary Specifications
+
+=== Entity Model
+
+See the existing AIUP artifact `docs/entity_model.md` — 14+ entities, no
+relational DB, persistence as TOML + JSON on disk.
+
+=== State Machine — Agent Loop turn
+
+[source]
+----
+IDLE --user prompt--> THINKING
+THINKING --completion has tool calls--> AWAITING_APPROVAL
+THINKING --completion has no tool calls--> IDLE
+AWAITING_APPROVAL --approved--> EXECUTING_TOOLS
+AWAITING_APPROVAL --rejected--> THINKING (rejection fed back)
+EXECUTING_TOOLS --results collected--> THINKING
+THINKING --context over threshold--> COMPACTING --> THINKING
+----
+Derived from `vibe/core/agent_loop.py`.
+
+=== Interface Contracts
+
+Layer boundaries use ports-and-adapters: `ports/` define abstract contracts,
+`adapters/` provide concrete implementations (`update_notifier`, `plan_offer`,
+`narrator_manager`, `voice_manager`, `notifications`). Tools expose Pydantic
+arg/result schemas, not domain entities.
+
+=== Validation Rules
+
+Field-level validation is enforced by Pydantic models in
+`vibe/core/config/_settings.py` (e.g. `startup_timeout_sec` and
+`tool_timeout_sec` constrained `gt=0`, `_settings.py:234-240`).

@@ -1,0 +1,190 @@
+= Architecture Decision Records — Mistral Vibe
+:toc: left
+:toclevels: 2
+:sectnums:
+
+NOTE: No ADR records exist in the repository. These ADRs are reconstructed in
+Phase 2 from observable code shape. Every record has Status
+"Accepted (inferred)". Pugh-matrix cells that need a team judgment are marked
+`?` rather than guessed. Pugh scale: -1 worse, 0 equal, +1 better; the baseline
+column scores 0.
+
+== ADR-001: Layered package with a UI-agnostic core
+
+*Status*: Accepted (inferred)
+
+*Context*: Vibe must serve three channels — an interactive TUI, a headless `-p`
+mode, and an ACP server. The agent logic must not depend on any one of them.
+
+*Decision*: Split the package into `vibe/core` (domain + agent loop, no UI or
+provider detail), `vibe/cli` (Textual TUI), `vibe/acp` (ACP server), and
+`vibe/setup` (onboarding/auth). All three channels drive the same core
+(`vibe/core/agent_loop.py`).
+
+*Consequences*: One agent loop, three front-ends; the core is testable without
+a terminal. Cost: discipline is needed to keep UI imports out of `core`.
+
+[cols="2,1,1,1",options="header"]
+|===
+| Criterion | Layered core (chosen) | Monolithic CLI module | Microservice split
+| UI independence | +1 | -1 | +1
+| Testability | +1 | -1 | 0
+| Simplicity | 0 | +1 | -1
+| Fit for a single-process CLI | +1 | 0 | -1
+| *Total* | *+3* | *-1* | *-1*
+|===
+
+== ADR-002: Ports-and-adapters at integration seams
+
+*Status*: Accepted (inferred)
+
+*Context*: Vibe integrates with volatile externals — update registries, a
+remote whoami gateway, narrator/voice backends, OS notifications.
+
+*Decision*: Apply ports-and-adapters at those seams — explicit `ports/`
+(abstract contracts) and `adapters/` (implementations) packages, seen in
+`update_notifier`, `plan_offer`, `narrator_manager`, `voice_manager`,
+`notifications`.
+
+*Consequences*: Externals are swappable and mockable in tests; dependency
+direction points inward. Cost: more files and indirection for small seams.
+
+[cols="2,1,1",options="header"]
+|===
+| Criterion | Ports-and-adapters (chosen) | Direct calls
+| Testability (mocking) | +1 | -1
+| Swappability of externals | +1 | -1
+| Code volume / simplicity | -1 | +1
+| Consistency across seams | +1 | 0
+| *Total* | *+2* | *-1*
+|===
+
+== ADR-003: Five LLM backends behind one factory
+
+*Status*: Accepted (inferred)
+
+*Context*: Vibe is "powered by Mistral models" but must also reach Anthropic,
+OpenAI-responses, Vertex, and generic OpenAI-style APIs.
+
+*Decision*: Define a backend interface (`vibe/core/llm/backend/base.py`) with
+five implementations, selected by a `BACKEND_FACTORY` keyed on the provider
+backend field (`vibe/core/llm/backend/factory.py`, `agent_loop.py:556`).
+
+*Consequences*: The agent loop is provider-agnostic; adding a provider is a new
+backend file. Cost: each backend must absorb provider quirks (a
+`reasoning_adapter.py` exists for exactly this).
+
+[cols="2,1,1",options="header"]
+|===
+| Criterion | Factory + backends (chosen) | Single hard-coded Mistral client
+| Multi-provider support | +1 | -1
+| Agent-loop simplicity | +1 | 0
+| Maintenance per provider | -1 | +1
+| Vendor lock-in risk | +1 | -1
+| *Total* | *+2* | *-1*
+|===
+
+== ADR-004: Restrict the `bash` tool with a denylist, not a sandbox
+
+*Status*: Accepted (inferred)
+
+*Context*: An LLM may propose any shell command. Vibe must reduce harm without a
+full OS sandbox.
+
+*Decision*: Parse each command with tree-sitter, reject interactive shells,
+editors, and standalone interpreters via a denylist, and confine path commands
+to the working directory (`bash.py:41-64,120-147`). Defence in depth with the
+approval gate (ADR-005).
+
+*Consequences*: Common foot-guns are blocked while normal commands flow freely.
+Cost: a denylist is not exhaustive — a determined or clever command can still be
+destructive. `?` whether a stronger sandbox was considered and rejected — needs
+the team.
+
+[cols="2,1,1,1",options="header"]
+|===
+| Criterion | Denylist + parse (chosen) | Full OS sandbox | No restriction
+| Safety | +1 | +1 | -1
+| Usability (normal commands work) | +1 | -1 | +1
+| Implementation cost | +1 | -1 | +1
+| Completeness of protection | ? | +1 | -1
+| *Total* | *+3 (+?)* | *0* | *0*
+|===
+
+== ADR-005: Approval-gated tool execution with agent profiles
+
+*Status*: Accepted (inferred)
+
+*Context*: Autonomy must be tunable — some users want to confirm every action,
+others want speed.
+
+*Decision*: Gate every tool call through a permission manager
+(`tools/permissions.py`) and offer four profiles — `default`, `plan`,
+`accept-edits`, `auto-approve` — plus a `bypass_tool_permissions` config flag
+(`_settings.py:510`, `README.md` Built-in Agents).
+
+*Consequences*: Safe by default, fast when chosen. Cost: `auto-approve` /
+`bypass` removes the safety net — a real risk (T-002).
+
+[cols="2,1,1",options="header"]
+|===
+| Criterion | Profiles + gate (chosen) | Always prompt | Always auto-approve
+| Safety by default | +1 | +1 | -1
+| Workflow speed when trusted | +1 | -1 | +1
+| User control / flexibility | +1 | -1 | -1
+| *Total* | *+3* | *-1* | *-1*
+|===
+
+== ADR-006: Disk-based persistence (TOML + JSON), no database
+
+*Status*: Accepted (inferred)
+
+*Context*: Vibe is a single-user local CLI; sessions and config must persist
+between runs.
+
+*Decision*: Persist configuration as layered TOML and sessions as JSON logs on
+disk; no relational database (`docs/entity_model.md`,
+`vibe/core/session/session_logger.py`, `vibe/core/config/`).
+
+*Consequences*: Zero install footprint, human-readable, version-control-friendly.
+Cost: no schema migration layer — a `session_migration.py` handles format drift
+by hand.
+
+[cols="2,1,1",options="header"]
+|===
+| Criterion | Disk TOML+JSON (chosen) | Embedded DB (SQLite)
+| Install footprint | +1 | 0
+| Human-readability / editability | +1 | -1
+| Query / migration support | -1 | +1
+| Fit for a single-user CLI | +1 | 0
+| *Total* | *+2* | *0*
+|===
+
+== ADR-007: Exact pinning of `mistralai` and `agent-client-protocol`
+
+*Status*: Accepted (inferred)
+
+*Context*: Most dependencies use `>=` ranges and a 7-day `exclude-newer`
+auto-bump; two are pinned exactly and excluded from the auto-bump
+(`pyproject.toml` tool.uv).
+
+*Decision*: Pin `mistralai==2.4.4` and `agent-client-protocol==0.9.0` exactly,
+because both define protocol/SDK contracts where a minor upstream change can
+break Vibe.
+
+*Consequences*: Stable integration; protected from surprise breakage. Cost:
+manual upgrades, and security/feature drift if upstream moves
+(`[OPEN — see Q5.4-sbom]`).
+
+[cols="2,1,1",options="header"]
+|===
+| Criterion | Exact pin (chosen) | Range `>=`
+| Integration stability | +1 | -1
+| Protection from breaking changes | +1 | -1
+| Automatic security updates | -1 | +1
+| Maintenance effort | -1 | +1
+| *Total* | *0* | *0*
+|===
+
+NOTE: ADR-007 totals tie. Whether stability outweighs auto-updates here is a
+team judgment — `[OPEN — see Q3.9-adr]`.

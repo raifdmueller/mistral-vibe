@@ -1,0 +1,87 @@
+= Product Requirements Document — Mistral Vibe
+:toc: left
+:toclevels: 2
+:sectnums:
+
+NOTE: This PRD is synthesized in Phase 2 from the answered leaves of
+`QUESTION_TREE.adoc`. Claims that depend on team input are marked
+`[OPEN — see Q-X.Y]` and resolved in `OPEN_QUESTIONS.adoc`. Version 2.9.6.
+
+== Problem
+
+Developers work in a terminal and want to explore, modify, and operate on a
+codebase using natural language instead of memorising commands. They need an
+agent that can read and write files, run shell commands, search code, and call
+external tools — while staying safe, because an LLM can propose destructive
+actions. Mistral Vibe answers that need as an open-source CLI coding assistant
+powered by Mistral models.
+
+The strategic reason Mistral invests in an open-source agent is
+`[OPEN — see Q1.4-rationale]`.
+
+== Goals
+
+* Give developers a conversational coding agent in the terminal (`README.md:22`).
+* Keep tool execution safe by default — approval prompts, a shell denylist, and a
+trusted-folder gate (`vibe/core/tools/permissions.py`,
+`vibe/core/tools/builtins/bash.py:120-147`, `vibe/core/trusted_folders.py`).
+* Stay extensible — MCP servers, connectors, and skills add tools without code
+changes (`vibe/core/tools/mcp/`, `vibe/core/skills/`).
+* Run anywhere a developer works — interactive TUI, headless `-p` mode, and an
+ACP server for editors (`vibe/cli/`, `vibe/core/programmatic.py`, `vibe/acp/`).
+* Be reliable against transient LLM/network failure (`vibe/core/utils/retry.py`).
+
+Quantified success targets are `[OPEN — see Q1.5-targets]`.
+
+== Personas
+
+Primary persona — *the Developer*: works in a UNIX-like terminal on a code
+project, wants to delegate exploration and edits to an agent, expects to stay in
+control of what runs (`README.md:24`, `docs/use_cases/UC-001-start-a-coding-session.md`).
+
+Secondary persona — *the CI/Automation user*: runs Vibe non-interactively via
+the GitHub Action or `-p` flag in a pipeline (`action.yml`,
+`vibe/core/programmatic.py`).
+
+Segment priority among these is `[OPEN — see Q1.6]`.
+
+== Success Criteria
+
+The product instruments itself: OpenTelemetry traces (`vibe/core/tracing.py`),
+per-session cost and token statistics (the `AGENT_STATS` entity,
+`docs/entity_model.md`), telemetry events on by default
+(`vibe/core/config/_settings.py:511`), and an in-app feedback bar
+(`vibe/cli/textual_ui/widgets/feedback_bar.py`). 228 test modules act as the
+executable acceptance baseline. The numeric pass/fail targets for these signals
+are `[OPEN — see Q1.5-targets]`. Definition of done per use case is
+`[OPEN — see Q2.5-signoff]`.
+
+== Scope
+
+=== In scope (derivable from code)
+
+* Conversational agent loop with streaming LLM completions
+(`vibe/core/agent_loop.py`).
+* 12 built-in tools: `bash`, `read_file`, `write_file`, `search_replace`,
+`grep`, `task`, `todo`, `web_fetch`, `web_search`, `skill`,
+`ask_user_question`, `exit_plan_mode` (`vibe/core/tools/builtins/`).
+* 4 agent profiles: `default`, `plan`, `accept-edits`, `auto-approve`
+(`README.md`, Built-in Agents).
+* Multi-backend LLM support: Mistral, Anthropic, OpenAI-responses, Vertex,
+generic (`vibe/core/llm/backend/`).
+* Session persistence, resume, rename, rewind, compaction
+(`vibe/core/session/`, `vibe/core/rewind/`).
+* MCP servers and connectors; skills and custom slash commands.
+* Voice input and a narrator (`vibe/cli/voice_manager/`,
+`vibe/cli/narrator_manager/`).
+* Scheduled recurring prompts, capped at 50 per session (`vibe/core/loop.py:35`).
+* ACP server for editor/IDE integration (`vibe/acp/`).
+* Self-update from PyPI/GitHub (`vibe/cli/update_notifier/`).
+
+=== Out of scope
+
+* No relational database — persistence is TOML + JSON on disk
+(`docs/entity_model.md`).
+* No multi-user or server deployment — single-user, single-process CLI (Q5.5).
+* Windows is supported best-effort only; UNIX is the official target
+(`README.md:27`).
