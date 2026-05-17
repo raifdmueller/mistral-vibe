@@ -1,0 +1,194 @@
+= Architecture Decision Records — Mistral Vibe
+:toc: left
+:toclevels: 2
+
+== About this document
+
+*Phase 2 synthesis* of the Socratic Code-Theory Recovery workflow, built from
+the `Q3.9` branch of `QUESTION_TREE.adoc`. No ADRs existed in the repository
+before this recovery (`QUESTION_TREE.adoc` Q3.9.6).
+
+Each record uses the *Nygard* structure (Context, Decision, Status,
+Consequences). The *decision itself* and its *consequences* are provable from
+code and carry `file:line` citations. The *rationale* — why this option was
+chosen over alternatives — is *not* derivable from code; it is reproduced as an
+`OPEN QUESTION` and routed to the Architect. No rationale is assumed.
+
+Each record includes a *comparison matrix* of objective, code-checkable
+capabilities of the candidate options. Converting such a matrix into a *scored
+Pugh matrix* requires criteria weights and a datum chosen by the Architect;
+that weighting step is itself an open question and is flagged per record.
+
+== ADR-001 — Textual as the interactive UI framework
+
+*Status:* Accepted (in production — `textual==8.2.4`, `pyproject.toml:48`).
+
+*Context.* Vibe needs a rich, interactive terminal experience: streaming
+output, widgets (approval dialogs, pickers, debug console), autocompletion
+popups, and themes (`vibe/cli/textual_ui/`).
+
+*Decision.* The interactive UI is built on the Textual framework, pinned to an
+exact version, with `textual-speedups` for performance (`pyproject.toml:48-49`).
+
+*Consequences.* A large `vibe/cli/textual_ui/` widget tree; a snapshot-test
+suite tied to Textual (`tests/snapshots/`); an exact version pin, implying
+deliberate, controlled upgrades.
+
+*Comparison matrix (objective capabilities):*
+
+[cols="2,1,1,1",options="header"]
+|===
+| Capability | Textual | Rich (alone) | prompt_toolkit
+
+| Full-screen widget application | yes | no | yes
+| Built-in async event loop | yes | no | yes
+| Snapshot testing support | yes (used) | n/a | limited
+| Rich markup / rendering | yes (via Rich) | yes | partial
+|===
+
+[IMPORTANT]
+.OPEN QUESTION — Q3.9.1 (design-rationale, Architect)
+====
+Why was Textual chosen as the UI framework, which alternatives were considered,
+and how should the comparison criteria be weighted into a scored Pugh matrix?
+====
+
+== ADR-002 — Hexagonal ports/adapters architecture
+
+*Status:* Accepted (in production — pervasive `_port.py` / `adapters/`).
+
+*Context.* The engine integrates many external systems (LLM providers,
+transcription, TTS, update gateways, notifications, clipboard) that benefit
+from being swappable and test-doubled.
+
+*Decision.* Abstract interfaces use the `_port.py` suffix; concrete
+implementations live in `adapters/` packages (`AGENTS.md` "Project layout";
+e.g. `vibe/cli/update_notifier/ports/` vs `.../adapters/`,
+`vibe/core/transcribe/transcribe_client_port.py`).
+
+*Consequences.* Consistent test doubles (`tests/stubs/` `Fake*`,
+`AGENTS.md`); more files and indirection per integration; clear engine/adapter
+separation.
+
+*Comparison matrix (objective capabilities):*
+
+[cols="2,1,1",options="header"]
+|===
+| Capability | Ports/adapters | Direct integration
+
+| Swappable implementations without engine changes | yes | no
+| Test doubles isolated from real services | yes | partial
+| File/indirection count per integration | higher | lower
+|===
+
+[IMPORTANT]
+.OPEN QUESTION — Q3.9.2 (design-rationale, Architect)
+====
+Why is the codebase structured around the hexagonal ports/adapters pattern, and
+how should the trade-offs be weighted?
+====
+
+== ADR-003 — Two-layer LLM backend with pluggable API-style adapters
+
+*Status:* Accepted (in production).
+
+*Context.* Vibe must talk to Mistral's API and to alternative OpenAI-,
+Anthropic-, and Vertex-style endpoints.
+
+*Decision.* Two backends are registered — `MistralBackend` and `GenericBackend`
+(`vibe/core/llm/backend/factory.py:7`). The `GenericBackend` selects a
+request/response `APIAdapter` from the provider's `api_style`: `openai`,
+`anthropic`, `openai-responses`, `vertex-anthropic`
+(`vibe/core/llm/backend/generic.py:169-187`, `:255-256`).
+
+*Consequences.* New OpenAI-compatible providers need only configuration, not
+code; genuinely different APIs need a new adapter; the Mistral path is a
+dedicated backend rather than an adapter.
+
+*Comparison matrix (objective capabilities):*
+
+[cols="2,1,1",options="header"]
+|===
+| Capability | Backend + adapters (current) | Single backend
+
+| Add an OpenAI-compatible provider via config only | yes | yes
+| Support structurally different provider APIs | yes (new adapter) | no
+| Provider-specific optimizations (Mistral) | yes (dedicated backend) | no
+|===
+
+[IMPORTANT]
+.OPEN QUESTION — Q3.9.3 (design-rationale, Architect)
+====
+Why does Vibe support multiple LLM backends rather than a single one, and why
+is Mistral a separate backend rather than another `api_style` adapter?
+====
+
+== ADR-004 — Layered, merge-strategy-driven configuration
+
+*Status:* Accepted (in production).
+
+*Context.* Configuration comes from several layers — defaults, user
+`config.toml`, project `config.toml`, `VIBE_*` environment variables, agent
+profiles — and must combine predictably.
+
+*Decision.* Config fields declare a merge strategy via annotated metadata
+(`WithReplaceMerge`, `WithConcatMerge`, `WithUnionMerge`, `WithShallowMerge`,
+`WithConflictMerge` — `vibe/core/config/schema.py:104-141`); layers are merged
+accordingly (`vibe/core/config/layer.py`). Source precedence is init → env →
+TOML (`_settings.py:795-816`).
+
+*Consequences.* Per-field control over layering; a non-trivial schema-fragment
+machinery (`ConfigSchema`, `ConfigFragment` — `schema.py:19-67`); every config
+field must declare a merge strategy or be a fragment.
+
+*Comparison matrix (objective capabilities):*
+
+[cols="2,1,1",options="header"]
+|===
+| Capability | Declarative merge metadata | Flat last-wins override
+
+| Per-field merge behavior (concat / union / conflict) | yes | no
+| Compile-time enforcement that fields declare merge intent | yes | no
+| Schema machinery complexity | higher | lower
+|===
+
+[IMPORTANT]
+.OPEN QUESTION — Q3.9.4 (design-rationale, Architect)
+====
+Why was a layered, merge-strategy-driven configuration system chosen over a
+simpler flat override model?
+====
+
+== ADR-005 — Separate `vibe-acp` entrypoint for IDE integration
+
+*Status:* Accepted (in production — `pyproject.toml:74`).
+
+*Context.* Beyond the interactive TUI, Vibe must be driven by IDEs over the
+Agent Client Protocol via stdio.
+
+*Decision.* ACP is shipped as a distinct console entrypoint, `vibe-acp`
+(`pyproject.toml:74`, `vibe/acp/entrypoint.py`), with its own argument parser,
+session handling, and tool layer (`vibe/acp/`), reusing `vibe/core`.
+
+*Consequences.* Clean separation of the TUI from the protocol server; some
+duplication (e.g. `bootstrap_config_files` exists in both
+`vibe/cli/cli.py:107` and `vibe/acp/entrypoint.py:41`); ACP and CLI can evolve
+independently.
+
+*Comparison matrix (objective capabilities):*
+
+[cols="2,1,1",options="header"]
+|===
+| Capability | Separate `vibe-acp` entrypoint | Single entrypoint with a mode flag
+
+| Independent argument parsing per channel | yes | partial
+| Shared engine reuse (`vibe/core`) | yes | yes
+| Bootstrap/setup code duplication | present | avoidable
+|===
+
+[IMPORTANT]
+.OPEN QUESTION — Q3.9.5 (design-rationale, Architect)
+====
+Why is ACP shipped as a separate `vibe-acp` entrypoint rather than as an
+embedded mode of the main CLI?
+====

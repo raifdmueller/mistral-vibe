@@ -1,0 +1,48 @@
+@startuml Use Cases Overview
+left to right direction
+
+actor "Developer" as developer
+actor "Automation Script" as automation
+actor "Code Editor" as editor
+actor "Scheduler" as scheduler
+actor "Mistral Platform" as platform
+
+rectangle "Mistral Vibe" {
+    usecase "UC-001\nConfigure API Access" as UC001
+    usecase "UC-002\nGrant Trust to a Project Folder" as UC002
+    usecase "UC-003\nRun an Interactive Coding Session" as UC003
+    usecase "UC-004\nRun a Coding Task Non-Interactively" as UC004
+    usecase "UC-005\nResume a Previous Session" as UC005
+    usecase "UC-006\nManage Conversation Context" as UC006
+    usecase "UC-007\nCustomize Session Settings" as UC007
+    usecase "UC-008\nExtend Vibe with Skills" as UC008
+    usecase "UC-009\nConnect External Tools via MCP Servers" as UC009
+    usecase "UC-010\nDictate Input Using Voice Mode" as UC010
+    usecase "UC-011\nSchedule a Recurring Prompt" as UC011
+    usecase "UC-012\nIntegrate Vibe with an IDE" as UC012
+    usecase "UC-013\nTeleport a Session to Vibe Code" as UC013
+}
+
+developer --> UC001
+developer --> UC002
+developer --> UC003
+developer --> UC005
+developer --> UC006
+developer --> UC007
+developer --> UC008
+developer --> UC009
+developer --> UC010
+developer --> UC011
+developer --> UC013
+
+automation --> UC004
+editor --> UC012
+scheduler --> UC011
+
+UC001 --> platform
+UC003 --> platform
+UC004 --> platform
+UC012 --> platform
+UC013 --> platform
+
+@enduml

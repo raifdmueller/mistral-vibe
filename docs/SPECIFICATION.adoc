@@ -1,0 +1,239 @@
+= Specification — Mistral Vibe
+:toc: left
+:toclevels: 3
+
+== About this document
+
+*Phase 2 synthesis* of the Socratic Code-Theory Recovery workflow, built from
+the `Q2` branch of `QUESTION_TREE.adoc`. It consolidates the use cases, the CLI
+contract, the data model, and Gherkin acceptance criteria.
+
+All behavior described here is derived from code or from the already-recovered
+use case documents; `file:line` citations are given for non-obvious claims.
+Open questions are reproduced as `OPEN QUESTION` callouts — none are assumed.
+
+== 1. Use cases (Cockburn)
+
+The thirteen use cases are fully specified — Primary Actor, Preconditions, Main
+Success Scenario, Alternative Flows (Extensions), Postconditions, Business
+Rules — in `docs/use_cases/UC-001..UC-013`. The diagram is `docs/use_cases.puml`.
+
+[cols="1,2,1"]
+|===
+| ID | Name | Primary Actor
+
+| UC-001 | Configure API Access | Developer
+| UC-002 | Grant Trust to a Project Folder | Developer
+| UC-003 | Run an Interactive Coding Session | Developer
+| UC-004 | Run a Coding Task Non-Interactively | Automation Script
+| UC-005 | Resume a Previous Session | Developer
+| UC-006 | Manage Conversation Context | Developer
+| UC-007 | Customize Session Settings | Developer
+| UC-008 | Extend Vibe with Skills | Developer
+| UC-009 | Connect External Tools via MCP Servers | Developer
+| UC-010 | Dictate Input Using Voice Mode | Developer
+| UC-011 | Schedule a Recurring Prompt | Developer
+| UC-012 | Integrate Vibe with an IDE | Code Editor
+| UC-013 | Teleport a Session to Vibe Code | Developer
+|===
+
+Business rules BR-001 … BR-028 are defined across the use case documents and
+are globally unique.
+
+[IMPORTANT]
+.OPEN QUESTION — Q2.8 (design-rationale, Architect)
+====
+What is the rationale for key functional rules — specifically, why are
+`ask_user_question` and `exit_plan_mode` disabled in programmatic mode
+(`vibe/cli/cli.py:213-217`), and why does programmatic mode force the
+`auto-approve` agent (`vibe/cli/cli.py:46-48`)?
+====
+
+== 2. CLI specification
+
+=== 2.1 `vibe` entrypoint
+
+Triggered by `vibe/cli/entrypoint.py:19-126`.
+
+[cols="1,3"]
+|===
+| Argument | Behavior
+
+| `PROMPT` (positional) | Initial prompt for an interactive session.
+| `-p, --prompt [TEXT]` | Programmatic mode: run the prompt, auto-approve tools, print, exit.
+| `--max-turns N` | Cap assistant turns (programmatic mode only).
+| `--max-price DOLLARS` | Cap session cost; interrupt when exceeded (programmatic mode only).
+| `--enabled-tools TOOL` | Allowlist tools (repeatable; exact / glob / `re:` regex).
+| `--output {text,json,streaming}` | Output format for programmatic mode (default `text`).
+| `--agent NAME` | Agent profile (builtin or custom).
+| `--setup` | Run API-key setup and exit.
+| `--workdir DIR` | Change to this directory before running.
+| `--trust` | Trust the working directory for this invocation only.
+| `-c, --continue` | Continue the most recent saved session.
+| `--resume [SESSION_ID]` | Resume a session, or open the picker when no ID is given.
+| `-v, --version` | Print the version and exit.
+|===
+
+`--continue` and `--resume` are mutually exclusive
+(`vibe/cli/entrypoint.py:110-125`). `--teleport` exists but is hidden
+(`vibe/cli/cli.py:108`).
+
+=== 2.2 `vibe-acp` entrypoint
+
+Triggered by `vibe/acp/entrypoint.py:30-37`. Accepts `--setup` and `--version`;
+otherwise runs the Agent Client Protocol server over stdio.
+
+=== 2.3 Slash commands (interactive mode)
+
+Registered in `vibe/cli/commands.py:52-177`: `/help`, `/config`, `/model`,
+`/thinking`, `/reload`, `/clear`, `/copy`, `/log`, `/debug`, `/compact`,
+`/exit`, `/status`, `/teleport`, `/proxy-setup`, `/resume` (`/continue`),
+`/rename`, `/mcp` (`/connectors`), `/voice`, `/leanstall`, `/unleanstall`,
+`/rewind`, `/loop`, `/data-retention`. Custom slash commands are contributed by
+user-invocable skills (UC-008).
+
+=== 2.4 Agent tools
+
+Built-in tools (`vibe/core/tools/builtins/`): `bash`, `grep`, `read_file`,
+`write_file`, `search_replace`, `todo`, `task`, `ask_user_question`,
+`exit_plan_mode`, `skill`, `webfetch`, `websearch`. Additional tools are
+contributed by MCP servers (UC-009) and connectors. Tool names derive from
+class names (`vibe/core/tools/base.py:336-338`).
+
+== 3. Data model
+
+The domain entity model — twelve entities with an ER diagram and AIUP-typed
+attribute tables — is specified in `docs/entity_model.md`. Source Pydantic
+models: `vibe/core/config/_settings.py`, `vibe/core/types.py`,
+`vibe/core/agents/models.py`, `vibe/core/skills/models.py`,
+`vibe/core/hooks/models.py`.
+
+== 4. Output contracts
+
+Programmatic output is rendered by `vibe/core/output_formatters.py` in one of
+three formats (`vibe/cli/cli.py:73-81`):
+
+* `text` — human-readable response (default).
+* `json` — all messages emitted as a single JSON document at the end.
+* `streaming` — one newline-delimited JSON record per message.
+
+ACP-mode output follows the Agent Client Protocol contract
+(`agent-client-protocol==0.9.0`, `pyproject.toml:29`).
+
+== 5. Acceptance criteria (Gherkin)
+
+The following scenarios encode behavior that is provable from code. They are
+the basis for the Baseline Tests step. Each `Feature` references a use case ID.
+
+[source,gherkin]
+----
+Feature: Configure API access (UC-001)
+
+  Scenario: Non-interactive start without credentials
+    Given no API key is available for the active provider
+    When Vibe is started in non-interactive mode
+    Then an error explaining how to set the credential is printed
+    And Vibe exits with a non-zero status
+    # Evidence: vibe/cli/cli.py:66-78, _settings.py:848-857
+
+  Scenario: Invalid system prompt id
+    Given the configured system prompt id resolves to no builtin and no file
+    When configuration is loaded
+    Then Vibe reports an invalid system prompt id and exits
+    # Evidence: vibe/cli/cli.py:79-81, _settings.py:702-720
+----
+
+[source,gherkin]
+----
+Feature: Grant trust to a project folder (UC-002)
+
+  Scenario: Home directory is never prompted
+    Given the working directory is the user's home directory
+    When Vibe checks whether to show the trust prompt
+    Then the trust prompt is not shown
+    # Evidence: vibe/cli/entrypoint.py:129-131
+
+  Scenario: Directory without behavior-modifying files is not prompted
+    Given the working directory contains no trustable files
+    When Vibe checks whether to show the trust prompt
+    Then the trust prompt is not shown
+    # Evidence: vibe/cli/entrypoint.py:133-135
+----
+
+[source,gherkin]
+----
+Feature: Run a coding task non-interactively (UC-004)
+
+  Scenario: No prompt provided
+    Given Vibe is invoked in programmatic mode
+    And no prompt is supplied as an argument or on standard input
+    When Vibe starts
+    Then an error about the missing prompt is printed
+    And Vibe exits with a non-zero status
+    # Evidence: vibe/cli/cli.py:218-223
+
+  Scenario: Interactive-only tools are disabled
+    Given Vibe is invoked in programmatic mode
+    When the tool set is assembled
+    Then the ask_user_question and exit_plan_mode tools are disabled
+    # Evidence: vibe/cli/cli.py:213-217
+
+  Scenario: Turn limit interrupts the session
+    Given a maximum turn count is configured
+    When the agent reaches that number of turns
+    Then the session is interrupted with a turn-limit reason
+    # Evidence: vibe/core/middleware.py:49-57
+----
+
+[source,gherkin]
+----
+Feature: Resume a previous session (UC-005)
+
+  Scenario: Continuation requires session logging
+    Given session logging is disabled
+    When the developer requests --continue or --resume
+    Then Vibe reports that session logging must be enabled and exits
+    # Evidence: vibe/cli/cli.py:132-138
+
+  Scenario: Unknown session id
+    Given no saved session matches the requested id
+    When the developer requests --resume with that id
+    Then Vibe reports that the session was not found and exits
+    # Evidence: vibe/cli/cli.py:154-163
+----
+
+[source,gherkin]
+----
+Feature: Schedule a recurring prompt (UC-011)
+
+  Scenario: Loop prompt may not start with a slash
+    Given the developer schedules a loop whose prompt starts with "/"
+    When the loop is validated
+    Then the loop is rejected with an error
+    # Evidence: vibe/core/loop.py:206-207
+
+  Scenario: Loop limit per session
+    Given a session already has 50 scheduled loops
+    When the developer schedules another loop
+    Then the loop is rejected with a loop-limit error
+    # Evidence: vibe/core/loop.py:35, :208-211
+----
+
+[source,gherkin]
+----
+Feature: Customize session settings (UC-007)
+
+  Scenario: Duplicate model aliases are rejected
+    Given the configuration declares two models with the same alias
+    When the configuration is validated
+    Then validation fails with a duplicate-alias error
+    # Evidence: vibe/core/config/_settings.py:888-897
+----
+
+[IMPORTANT]
+.OPEN QUESTION — Q2.7.1 (design-rationale, Product Owner)
+====
+Are there acceptance criteria defined outside the automated test suite? The
+scenarios above were reverse-engineered from code, not from an authoritative
+specification.
+====
