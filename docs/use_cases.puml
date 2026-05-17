@@ -1,0 +1,60 @@
+@startuml Use Cases Overview
+left to right direction
+
+actor "Developer" as dev
+actor "Automation Script" as script
+actor "IDE / ACP Client" as acp
+actor "Mistral API" as mistral
+actor "MCP Server / Connector" as mcp
+actor "Vibe Code (cloud)" as cloud
+
+rectangle "Mistral Vibe" {
+    usecase "UC-001\nRun an Interactive Coding Session" as UC001
+    usecase "UC-002\nRun a One-Shot Prompt" as UC002
+    usecase "UC-003\nResume a Past Session" as UC003
+    usecase "UC-004\nManage Conversation Context" as UC004
+    usecase "UC-005\nSwitch Model and Agent" as UC005
+    usecase "UC-006\nConfigure Vibe" as UC006
+    usecase "UC-007\nAuthenticate and Set Up Access" as UC007
+    usecase "UC-008\nGrant Tool Permissions" as UC008
+    usecase "UC-009\nExtend Vibe with MCP Servers" as UC009
+    usecase "UC-010\nUse Skills and Subagents" as UC010
+    usecase "UC-011\nTrust a Working Directory" as UC011
+    usecase "UC-012\nUse Voice Input and Narration" as UC012
+    usecase "UC-013\nServe an IDE over ACP" as UC013
+    usecase "UC-014\nTeleport a Session to the Cloud" as UC014
+    usecase "UC-015\nSchedule a Recurring Prompt" as UC015
+}
+
+dev --> UC001
+dev --> UC002
+dev --> UC003
+dev --> UC004
+dev --> UC005
+dev --> UC006
+dev --> UC007
+dev --> UC008
+dev --> UC009
+dev --> UC010
+dev --> UC011
+dev --> UC012
+dev --> UC013
+dev --> UC014
+dev --> UC015
+
+script --> UC002
+
+acp --> UC013
+
+UC001 --> mistral
+UC002 --> mistral
+UC013 --> mistral
+UC014 --> mistral
+UC009 --> mcp
+UC014 --> cloud
+
+UC001 ..> UC008 : <<include>>
+UC002 ..> UC008 : <<include>>
+UC001 ..> UC011 : <<include>>
+
+@enduml
