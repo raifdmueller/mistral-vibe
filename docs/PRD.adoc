@@ -1,0 +1,130 @@
+= Product Requirements Document — Mistral Vibe
+:toc: left
+:toclevels: 2
+
+== About this document
+
+*Phase 2 synthesis* of the Socratic Code-Theory Recovery workflow, built from
+the `Q1` branch of `QUESTION_TREE.adoc`.
+
+Conventions:
+
+* Claims derived from code/config carry a `file:line` citation.
+* No assumptions are made for unanswerable questions. Each is reproduced
+  verbatim as an `OPEN QUESTION` callout and remains routed to its role in
+  `OPEN_QUESTIONS.adoc`.
+
+[NOTE]
+====
+The stakeholder team reported that the open questions *cannot currently be
+answered*. They are therefore retained as open items below; this PRD describes
+only what is provable from the codebase.
+====
+
+== 1. Product purpose
+
+Mistral Vibe is an open-source, command-line coding assistant powered by
+Mistral's models. It gives a developer a conversational interface to a
+codebase, allowing natural-language exploration and modification of a project
+through a set of agent tools. (`README.md:20-22`, `pyproject.toml:4`)
+
+It ships under the Apache-2.0 license (`LICENSE`, `pyproject.toml:14`) and is
+distributed on PyPI as `mistral-vibe` (`pyproject.toml:2`).
+
+== 2. Target users and consuming systems
+
+[cols="1,3"]
+|===
+| Audience | Evidence
+
+| *Developer* — the primary human user, working in a local project directory.
+| `README.md:225-261`, `docs/use_cases.puml`
+
+| *Automation / CI pipelines* — run a single task non-interactively.
+| `vibe/core/programmatic.py`, `action.yml`
+
+| *Code editors / IDEs* — drive the agent over the Agent Client Protocol.
+| `vibe/acp/entrypoint.py`, `docs/acp-setup.md`
+|===
+
+[IMPORTANT]
+.OPEN QUESTION — Q1.2.3 (business-context, Product Owner)
+====
+Who are the business stakeholders of Mistral Vibe, and what is the commercial
+relationship between the free Apache-2.0 CLI and the paid Mistral API it
+depends on?
+====
+
+== 3. Product capabilities (user goals)
+
+Thirteen use-case-level goals are implemented. Full Cockburn specifications are
+in `docs/use_cases/`; acceptance criteria are in `docs/SPECIFICATION.adoc`.
+
+[cols="1,3"]
+|===
+| ID | Capability
+
+| UC-001 | Configure API access (onboarding, browser sign-in, API key).
+| UC-002 | Grant trust to a project folder.
+| UC-003 | Run an interactive coding session.
+| UC-004 | Run a coding task non-interactively (programmatic mode).
+| UC-005 | Resume a previous session.
+| UC-006 | Manage conversation context (clear / compact / rewind).
+| UC-007 | Customize session settings (model, agent, thinking, config).
+| UC-008 | Extend Vibe with skills and custom slash commands.
+| UC-009 | Connect external tools via MCP servers.
+| UC-010 | Dictate input using voice mode.
+| UC-011 | Schedule a recurring prompt.
+| UC-012 | Integrate Vibe with an IDE (ACP).
+| UC-013 | Teleport a session to Vibe Code (cloud).
+|===
+
+Evidence: `docs/use_cases/UC-001..UC-013`, `vibe/cli/commands.py:52-177`,
+`vibe/cli/entrypoint.py:32-125`.
+
+== 4. Key product constraints
+
+* Runs on Python ≥ 3.12 (`pyproject.toml:21`).
+* UNIX environments are officially supported; Windows is best-effort
+  (`README.md:24-25`).
+* Requires a Mistral API key (or a configured alternative provider) to operate
+  (`vibe/core/config/_settings.py:71-78`, `:848-857`).
+* Safety-first: tool executions require approval unless an agent profile or
+  tool policy authorizes them (`docs/use_cases/UC-003.md` BR-006).
+
+== 5. Success measures
+
+[IMPORTANT]
+.OPEN QUESTION — Q1.5 (business-context, Product Owner)
+====
+How is the product's success measured (which adoption or usage metrics matter,
+and what are their targets)? Telemetry is collected
+(`vibe/core/telemetry/`), but the metrics that define success are not in code.
+====
+
+== 6. Product strategy and roadmap
+
+[IMPORTANT]
+.OPEN QUESTION — Q1.4 (business-context, Product Owner)
+====
+What is the product strategy behind Mistral Vibe, and why is it released as
+open source?
+====
+
+[IMPORTANT]
+.OPEN QUESTION — Q5.4 (future-direction, Product Owner)
+====
+What is the product roadmap, and are any current features or flags planned for
+deprecation? (Code shows experimental/feature-flagged surfaces — teleport,
+experimental hooks, OTel — but no roadmap.)
+====
+
+== 7. Definition of done
+
+[IMPORTANT]
+.OPEN QUESTION — Q2.7.1 (design-rationale, Product Owner)
+====
+Are there acceptance criteria for the product defined outside the automated
+test suite (e.g. a BDD/Gherkin spec or a definition of done)? The `tests/`
+suite encodes intended behavior, but no separate acceptance document was found.
+====
