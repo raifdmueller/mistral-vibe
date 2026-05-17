@@ -1,0 +1,158 @@
+= Specification — Mistral Vibe
+:toc: left
+:toclevels: 3
+:sectnums:
+:revnumber: recovered from source v2.9.6
+
+This specification is recovered from source (Phase 2). It references the AIUP
+artifacts produced in Step 1 rather than re-deriving them. Items needing
+stakeholder confirmation are marked `[OPEN — see Q-X.Y]`.
+
+== Persona Use Cases
+
+The fifteen User-Goal use cases in Cockburn's Fully Dressed format already exist
+as AIUP artifacts and are the authoritative source:
+
+* `docs/use_cases.puml` — overview diagram.
+* `docs/use_cases/UC-001-run-interactive-session.md` … `UC-015-schedule-recurring-prompt.md`.
+
+This specification does not restate them. Business rules cited there (for
+example BR-013, BR-014 in UC-008) carry forward unchanged.
+
+== System Use Cases (technical interfaces)
+
+Four technical-interface families are recovered from code. Formal
+input/validation/status-code tables for each are `[OPEN — see Q2.3]`; what
+follows is what the code makes verifiable.
+
+=== SUC-1 — `vibe` CLI
+
+Entry point `vibe.cli.entrypoint:main` (`pyproject.toml:87`). Argument surface
+(`vibe/cli/entrypoint.py:19-126`):
+
+[cols="1,3",options="header"]
+|===
+| Flag | Effect
+| `PROMPT` (positional) | Initial prompt for an interactive session.
+| `-p, --prompt [TEXT]` | Programmatic mode; auto-approves tools, prints, exits.
+| `--max-turns N` | Turn cap (programmatic only).
+| `--max-price DOLLARS` | Cost cap (programmatic only).
+| `--enabled-tools TOOL` | Tool allowlist; exact / glob / `re:` regex.
+| `--output {text,json,streaming}` | Programmatic output format.
+| `--agent NAME` | Builtin or custom agent profile.
+| `--setup` | Configure API key and exit.
+| `--workdir DIR` | Change directory before running.
+| `--trust` | Trust the cwd for this invocation only.
+| `-c, --continue` | Resume the most recent session.
+| `--resume [SESSION_ID]` | Resume a session; picker if no ID.
+| `--teleport` | Hidden feature flag (`argparse.SUPPRESS`).
+|===
+
+Validation seen in code: `--workdir` must be an existing directory, else exit 1
+(`vibe/cli/entrypoint.py:160-167`); a deleted cwd exits 1
+(`vibe/cli/entrypoint.py:169-178`).
+
+=== SUC-2 — `vibe-acp` JSON-RPC server
+
+Entry point `vibe.acp.entrypoint:main` (`pyproject.toml:88`). Implements the
+Agent Client Protocol (`agent-client-protocol==0.9.0`) so an IDE can drive the
+agent. Session and tool handling in `vibe/acp/session.py`,
+`vibe/acp/acp_agent_loop.py`. Per-method request/response contracts are
+`[OPEN — see Q2.3]`.
+
+=== SUC-3 — Configuration file formats
+
+`config.toml` (project `./.vibe/` then `~/.vibe/`), `agents/*.toml`, and the
+`mcp_servers` table. Schema and validation in `vibe/core/config/schema.py`;
+layering and the trust gate in `vibe/core/config/layer.py`. Untrusted layers
+raise `UntrustedLayerError` (`vibe/core/config/layer.py:25-29`).
+
+=== SUC-4 — Session-log files
+
+Conversations are persisted to disk and resumed
+(`vibe/core/session/session_logger.py`, `session_loader.py`,
+`resume_sessions.py`). A migration path exists (`session_migration.py`). The
+on-disk format contract is `[OPEN — see Q2.3]`.
+
+== Activity Diagram — one agent turn
+
+[plantuml,turn-activity,svg]
+----
+@startuml
+start
+:Receive user prompt;
+:Agent loop builds message list;
+:Run middleware pipeline
+(auto-compact, context-warning,
+price/turn limit, read-only);
+if (limit reached?) then (yes)
+  :Emit reset / stop event;
+  stop
+else (no)
+endif
+:Stream LLM backend response;
+repeat
+  if (tool call requested?) then (yes)
+    :Resolve permission for tool;
+    if (allowed?) then (yes)
+      :Run tool;
+      :Feed result to conversation;
+    else (no / denied)
+      :Report refusal to assistant;
+    endif
+  else (no)
+    :Emit assistant text;
+  endif
+repeat while (more tool calls?) is (yes)
+->no;
+:Persist turn to session log;
+stop
+@enduml
+----
+
+== Acceptance Criteria (Gherkin)
+
+The 228 test files under `tests/` act as de-facto acceptance criteria but are
+not written in Gherkin and rarely cite UC IDs. One illustrative criterion,
+recovered from UC-008 and `tests/test_agent_override_resolve_permission.py`:
+
+[source,gherkin]
+----
+Feature: Tool permission gating (UC-008)
+  Scenario: A non-pre-approved action prompts the developer
+    Given a session is running
+    And the assistant requests a shell command not matching any allow rule
+    When the permission system resolves the request
+    Then the developer is shown the requested action
+    And the action runs only after explicit approval
+----
+
+A full Gherkin suite traced to UC/BR IDs is `[OPEN — see Q2.5]`.
+
+== Individual Requirements (EARS)
+
+Recovered from code, expressed in EARS:
+
+* *REQ-1* — When the developer runs `vibe` in a directory containing `.vibe`
+config and trust status is unresolved, the system shall prompt for trust before
+loading project-local configuration (`vibe/cli/entrypoint.py:129-155`).
+* *REQ-2* — While in programmatic mode, if the accumulated cost exceeds
+`--max-price`, the system shall interrupt the session
+(`vibe/core/middleware.py`, `PriceLimitMiddleware`).
+* *REQ-3* — If a tool action does not match an allow rule and is not bypassed,
+the system shall request developer approval before running it (UC-008, BR-013).
+* *REQ-4* — When a config layer is untrusted, the system shall refuse to load
+its data and raise `UntrustedLayerError` (`vibe/core/config/layer.py:25-29`).
+
+== Supplementary Specifications
+
+* *Entity Model* — see `docs/entity_model.md` (AIUP artifact, unchanged).
+* *State* — a session moves through created → active turns → resumable/teleported;
+formal state-machine confirmation is `[OPEN — see Q3.6]`.
+* *Interface Contracts* — see SUC-1…SUC-4 above; gaps `[OPEN — see Q2.3]`.
+* *Validation Rules* — recovered rules appear inline in SUC-1 and SUC-3.
+
+== Business Rules
+
+* *BR-013*, *BR-014* — tool permissioning, defined in `docs/use_cases/UC-008.md`.
+* A consolidated BR-ID register is `[OPEN — see Q2.6]`.

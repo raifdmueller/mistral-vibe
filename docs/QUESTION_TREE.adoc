@@ -1,0 +1,271 @@
+= Question Tree — Socratic Code-Theory Recovery: Mistral Vibe
+:toc: left
+:toclevels: 3
+:sectnums:
+
+Recovering the "theory" (Naur 1985) of *Mistral Vibe* — a ~43k-LOC Python 3.12+
+CLI coding assistant — from its source code. The tree below is the primary
+artifact. Phase 2 documentation is synthesized only from `[ANSWERED]` leaves;
+every `[OPEN]` leaf is routed to a role in `OPEN_QUESTIONS.adoc`.
+
+Leaf legend: `[ANSWERED]` carries `file:line` evidence. `[OPEN]` carries a
+Category, an Ask-role, and why it cannot be answered from code. The second
+level (Q1.1–Q5.5) is fixed by the Socratic contract and always present.
+
+== Q1 — Problem and Users
+
+=== Q1.1 Product identity
+[ANSWERED] Mistral Vibe is "Mistral's open-source CLI coding assistant", a
+conversational, tool-using agent over a codebase.
+Evidence: `pyproject.toml:1-4` (`name = "mistral-vibe"`, "Minimal CLI coding
+agent by Mistral"); `README.md:20-22`.
+
+=== Q1.2 Primary users
+[ANSWERED] Developers working in a terminal; automation scripts (programmatic
+mode); IDE/ACP clients.
+Evidence: `docs/use_cases.puml:3-9` (actors Developer, Automation Script,
+IDE/ACP Client); `README.md:225-262`.
+
+==== Q1.2.1 Are there distinct user personas beyond "developer"?
+[OPEN] Category: Product. Ask: Product Owner. Code names actor roles but not
+personas with goals/skill levels; cannot be derived from source.
+
+=== Q1.3 Channels
+[ANSWERED] Three delivery channels: interactive Textual TUI (`vibe`),
+programmatic stdin/flag mode (`vibe -p`), and an ACP server (`vibe-acp`).
+Evidence: `pyproject.toml:86-88` (two console scripts); `vibe/cli/entrypoint.py`;
+`vibe/acp/entrypoint.py`. Install via curl script, `uv`, or `pip`
+(`README.md:27-55`).
+
+=== Q1.4 Why it was built
+[OPEN] Category: Product. Ask: Product Owner. The repo states what Vibe is, not
+the business motivation (market position vs. other CLI assistants, strategic
+goal for Mistral). Not in code.
+
+=== Q1.5 Success metrics
+[OPEN] Category: Product. Ask: Product Owner. Telemetry is collected
+(`vibe/core/telemetry/`) but the code does not state which metric defines
+product success (adoption, retention, task-completion rate).
+
+=== Q1.6 Segment priority
+[OPEN] Category: Product. Ask: Product Owner. UNIX is the supported target
+(`README.md:24-25`), Windows is "works but not targeted" — but the priority
+order across developer segments (individual / team / CI) is a business call.
+
+== Q2 — Specification
+
+=== Q2.1 Actors
+[ANSWERED] Developer, Automation Script, IDE/ACP Client, Mistral API,
+MCP Server/Connector, Vibe Code cloud.
+Evidence: `docs/use_cases.puml:3-9`.
+
+=== Q2.2 Use-case catalog
+[ANSWERED] Fifteen User-Goal use cases already recovered as AIUP artifacts.
+See `docs/use_cases/UC-001` … `docs/use_cases/UC-015` and the overview diagram
+`docs/use_cases.puml`. The Socratic Q2 branch references these; it does not
+re-derive a competing list.
+
+=== Q2.3 Per-interface system specs
+[ANSWERED — partial] Interfaces identified from code: the `vibe` CLI argument
+surface (`vibe/cli/entrypoint.py:19-126`: `-p`, `--max-turns`, `--max-price`,
+`--enabled-tools`, `--output`, `--agent`, `--setup`, `--workdir`, `--trust`,
+`-c`, `--resume`, `--teleport`); the `vibe-acp` JSON-RPC server
+(`vibe/acp/entrypoint.py`, `vibe/acp/session.py`); the `config.toml` /
+`agents/*.toml` / `mcp_servers` file formats (`vibe/core/config/schema.py`);
+session-log files on disk (`vibe/core/session/session_logger.py`).
+[OPEN] Formal input/validation/status-code tables per interface are synthesized
+in Phase 2; see Q2.3 follow-ups in `OPEN_QUESTIONS.adoc` (Developer).
+
+=== Q2.4 Data / entity model
+[ANSWERED] Conceptual entity model already recovered. See `docs/entity_model.md`
+(VIBE_CONFIG, PROVIDER, MODEL, AGENT_PROFILE, SESSION, MESSAGE, TOOL,
+PERMISSION_RULE, SKILL, MCP_SERVER, CONNECTOR, TRUSTED_FOLDER, SCHEDULED_LOOP,
+TELEPORT_SESSION, plus config sub-entities). No relational DB; persistence is
+files and the OS keyring.
+
+=== Q2.5 Acceptance criteria
+[ANSWERED — partial] 228 test files exist (`tests/`), exercising the agent loop,
+middleware, tools, permissions, programmatic mode, ACP, snapshots. They serve as
+de-facto acceptance criteria but are not written as Gherkin and rarely cite UC
+IDs.
+[OPEN] Gherkin acceptance criteria traced to UC/BR IDs must be authored;
+see Q2.5 in `OPEN_QUESTIONS.adoc` (Developer).
+
+=== Q2.6 Cross-cutting business rules
+[ANSWERED — partial] Rules recovered from code: BR-013/BR-014 on tool
+permissioning (`docs/use_cases/UC-008.md:37-40`,
+`vibe/core/tools/permissions.py`); config layering precedence
+(`vibe/core/config/layer.py`); trust gate on project-local config
+(`vibe/cli/entrypoint.py:129-155`).
+[OPEN] A consolidated BR-ID register is a Phase 2 synthesis task.
+
+== Q3 — Architecture (arc42)
+
+=== Q3.1 Introduction and Goals
+[ANSWERED — partial] Purpose recovered (Q1.1). Top features listed
+(`README.md:92-110`).
+[OPEN] Ranked quality goals are a stakeholder decision; see Q4.9.
+
+=== Q3.2 Constraints
+[ANSWERED] Python >= 3.12 (`pyproject.toml:6`); `uv`-managed, never bare
+`pip`/`python` (`AGENTS.md:9`); strict Pyright gates CI (`AGENTS.md:41`);
+no relative imports (`pyproject.toml:165`); UNIX is the supported target,
+Windows best-effort (`README.md:24-25`); Apache-2.0 licence.
+
+=== Q3.3 Context and Scope
+[ANSWERED] External systems: Mistral API (and Anthropic / OpenAI / Vertex
+backends — `vibe/core/llm/backend/`), MCP servers / connectors
+(`vibe/core/tools/mcp/`), the Vibe Code cloud for teleport
+(`vibe/core/nuage/`, `vibe/core/teleport/`), the OS keyring, the local
+filesystem and shell, PyPI/GitHub for update checks (`vibe/cli/update_notifier/`).
+
+=== Q3.4 Solution Strategy
+[ANSWERED — partial] Strategy visible in code: a hexagonal "ports and adapters"
+style (`_port.py` suffix, `AGENTS.md:23`); a streaming `asyncio` agent loop with
+a middleware pipeline (`vibe/core/agent_loop.py`, `vibe/core/middleware.py`); a
+pluggable LLM backend factory (`vibe/core/llm/backend/factory.py`); a Textual
+TUI decoupled from the core engine.
+[OPEN] Why these strategies were chosen over alternatives → ADRs, Status
+"Accepted (inferred)".
+
+=== Q3.5 Building Block View
+[ANSWERED] Level-1 building blocks: `vibe/core` (engine: agent loop, tools, LLM
+backends, config, sessions, skills), `vibe/cli` (Textual TUI), `vibe/acp` (ACP
+bridge), `vibe/setup` (first-run wizards). Confirmed by `AGENTS.md:5`.
+
+==== Q3.5.1 Core engine internal blocks
+[ANSWERED] agent loop + middleware, tools (`core/tools`, builtins + MCP +
+connectors), LLM backends, config (layered), sessions (`core/session`),
+skills/agents, hooks, telemetry, teleport/nuage. Evidence: directory layout
+under `vibe/core/`.
+
+=== Q3.6 Runtime View
+[ANSWERED — partial] One turn: user prompt → agent loop builds messages →
+middleware pipeline (auto-compact, context-warning, price/turn limits,
+read-only) → LLM backend stream → tool calls → permission check → tool run →
+results fed back. Evidence: `vibe/core/agent_loop.py:37-52`,
+`vibe/core/middleware.py`, `vibe/core/tools/permissions.py`.
+[OPEN] ACP-session and teleport runtime sequences need confirmation of edge
+ordering; see Q3.6 in `OPEN_QUESTIONS.adoc` (Architect).
+
+=== Q3.7 Deployment View
+[ANSWERED] Distributed as a PyPI package (`mistral-vibe`), a curl install
+script, and a PyInstaller single-file binary (`vibe-acp.spec`, `pyinstaller/`).
+Runs entirely on the developer's machine; the only deployed-elsewhere component
+is the optional Vibe Code cloud reached over HTTPS/WebSocket. Evidence:
+`pyproject.toml:75-88`, `flake.nix`, `distribution/`.
+
+=== Q3.8 Crosscutting Concepts
+[ANSWERED — partial] Concepts present in code: structured logging
+(`vibe/core/logger.py`), config layering (`vibe/core/config/layer.py`),
+permissions (`vibe/core/tools/permissions.py`), trust gate
+(`vibe/core/trusted_folders.py`), retry util (`vibe/core/utils/retry.py`),
+OpenTelemetry tracing (`vibe/core/tracing.py`). Detailed §8.1–§8.5 in `arc42.adoc`.
+
+=== Q3.9 Architecture Decisions
+[ANSWERED — partial] Decisions inferable from code: hexagonal ports/adapters;
+pluggable LLM backend factory; layered TOML config with a trust gate;
+file-based session persistence; Textual for the TUI. Captured as inferred ADRs
+in `architecture-decisions.adoc`.
+[OPEN] Confirmed rationale and rejected alternatives → team.
+
+=== Q3.10 Quality Requirements
+[OPEN] Category: Architecture. Ask: Architect. No quality scenarios or
+measurable targets (latency budgets, startup-time SLA) are stated in code.
+
+=== Q3.11 Risks and Technical Debt
+[ANSWERED — partial] See Q5. Debt signals: `ruff` `preview = true` and a long
+`per-file-ignores` list (`pyproject.toml:134,159-162`); the teleport feature is
+hidden behind a suppressed flag (`vibe/cli/entrypoint.py:107-108`).
+
+=== Q3.12 Glossary
+[ANSWERED] Terms recoverable from code and docs: Agent, Agent Profile, Subagent,
+Tool, Skill, Connector, MCP Server, Middleware, Backend, Session, Teleport/Nuage,
+Trust Folder, Harness Files, Scratchpad. Consolidated in `arc42.adoc` §12.
+
+== Q4 — Quality Goals (ISO/IEC 25010)
+
+=== Q4.1 Functional Suitability
+[ANSWERED — partial] Broad tool/agent feature set with 228 test files. Whether
+functional completeness vs. a feature roadmap is met is a product judgement.
+
+=== Q4.2 Performance Efficiency
+[ANSWERED — partial] Performance-aware code exists: a profiler
+(`vibe/cli/profiler.py`), auto-compaction of context, `textual-speedups`
+dependency, `pytest` `--durations`. No stated performance target.
+[OPEN] Startup-time and turn-latency budgets → Architect.
+
+=== Q4.3 Compatibility
+[ANSWERED — partial] MCP and ACP give interoperability; multiple LLM backends.
+Windows compatibility is explicitly best-effort (`README.md:24-25`).
+
+=== Q4.4 Usability
+[ANSWERED — partial] Rich TUI: autocompletion, themes, voice, onboarding wizard.
+No usability metric is stated.
+
+=== Q4.5 Reliability
+[ANSWERED — partial] Retry util, middleware limits, structured error hierarchies
+(`AGENTS.md:71`), session resume/rewind. No availability target (it is a local
+CLI, so availability is mostly N/A).
+
+=== Q4.6 Security
+[ANSWERED — partial] Trust-folder gate, tool permissioning, keyring credential
+storage (`vibe/core/auth/crypto.py`, `keyring` dependency). Detailed threat
+model in `arc42.adoc` §8.1.
+
+=== Q4.7 Maintainability
+[ANSWERED] Strong signals: hexagonal ports, strict Pyright, `ruff`, `vulture`,
+`typos`, `pre-commit`, mirrored test layout, explicit `__all__` APIs.
+Evidence: `pyproject.toml:99-115`, `AGENTS.md`.
+
+=== Q4.8 Portability
+[ANSWERED — partial] Pure Python + `uv`; PyInstaller binary and Nix flake aid
+portability. UNIX-first.
+
+=== Q4.9 Priority quality characteristic
+[OPEN] Category: Architecture. Ask: Architect / Product Owner. Code signals
+point to Maintainability and Security as strongest, but the *ranking* of
+quality goals is a stakeholder decision.
+
+== Q5 — Risks
+
+=== Q5.1 Technical debt
+[ANSWERED — partial] `ruff` runs in preview mode; multiple `per-file-ignores`;
+teleport behind a hidden flag; `uv.lock` is large (heavy dependency tree).
+[OPEN] A prioritised debt register is a team exercise.
+
+=== Q5.2 Security risks
+[ANSWERED — partial] Inherent: the agent can run arbitrary shell commands and
+edit files; prompt-injection from tool output or fetched URLs; credential
+storage. Mitigations exist (trust gate, permissions, keyring). Full STRIDE
+analysis in `arc42.adoc` §8.1.
+
+=== Q5.3 Operational risks
+[OPEN] Category: Operations. Ask: Operations. Local CLI, so no service uptime —
+but failure modes (corrupt session logs, keyring unavailable, API outage) and
+their operational handling are not documented in code.
+
+=== Q5.4 Dependency / supply-chain risks
+[ANSWERED — partial] ~40 runtime dependencies (`pyproject.toml:29-67`); `uv`
+pins via `uv.lock` and `exclude-newer = "7 days"`. The curl-pipe-to-bash install
+path is a supply-chain surface.
+[OPEN] Whether dependency scanning / SBOM exists → Operations.
+
+=== Q5.5 Scaling / performance risks
+[ANSWERED — partial] Single-user local tool; "scaling" mostly N/A. Real risk is
+large-context cost and latency; mitigated by auto-compaction and price/turn
+limits (`vibe/core/middleware.py`).
+[OPEN] Performance ceilings on very large repos → Architect.
+
+== Leaf summary
+
+[cols="2,1",options="header"]
+|===
+| Status | Count
+| [ANSWERED] / [ANSWERED — partial] | 38
+| [OPEN] (incl. partial-leaf follow-ups) | 14
+| Total leaves | 52
+|===
+
+All fixed second-level nodes Q1.1–Q1.6, Q2.1–Q2.6, Q3.1–Q3.12, Q4.1–Q4.9,
+Q5.1–Q5.5 are present.

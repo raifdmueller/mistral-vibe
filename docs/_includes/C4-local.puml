@@ -1,0 +1,50 @@
+' Minimal local C4-PlantUML macro set for Mistral Vibe architecture docs.
+' Vendored locally because Kroki cannot fetch the remote C4-PlantUML URL.
+' Defines only the macros used by docs/arc42.adoc. To use the full library,
+' replace this file with the upstream C4_Context.puml / C4_Container.puml /
+' C4_Component.puml from https://github.com/plantuml-stdlib/C4-PlantUML.
+
+skinparam wrapWidth 200
+skinparam maxMessageSize 180
+skinparam defaultTextAlignment center
+skinparam rectangle {
+  RoundCorner 12
+}
+
+!define C4_PERSON_BG #08427B
+!define C4_SYSTEM_BG #1168BD
+!define C4_EXT_BG #999999
+!define C4_CONTAINER_BG #438DD5
+!define C4_COMPONENT_BG #85BBF0
+
+!unquoted procedure Person($alias, $label, $descr="")
+rectangle "==<&person> $label\n//$descr//" as $alias #C4_PERSON_BG
+!endprocedure
+
+!unquoted procedure System($alias, $label, $descr="")
+rectangle "==$label\n//$descr//" as $alias #C4_SYSTEM_BG
+!endprocedure
+
+!unquoted procedure System_Ext($alias, $label, $descr="")
+rectangle "==$label\n//$descr//" as $alias #C4_EXT_BG
+!endprocedure
+
+!unquoted procedure Container($alias, $label, $techn="", $descr="")
+rectangle "==$label\n<size:10>[$techn]</size>\n//$descr//" as $alias #C4_CONTAINER_BG
+!endprocedure
+
+!unquoted procedure Container_Boundary($alias, $label)
+rectangle "$label" as $alias #line:black;back:transparent {
+!endprocedure
+
+!unquoted procedure Component($alias, $label, $techn="", $descr="")
+rectangle "==$label\n<size:10>[$techn]</size>\n//$descr//" as $alias #C4_COMPONENT_BG
+!endprocedure
+
+!unquoted procedure Rel($from, $to, $label, $techn="")
+$from --> $to : "$label\n<size:9>[$techn]</size>"
+!endprocedure
+
+!unquoted procedure Rel_Back($from, $to, $label, $techn="")
+$from <-- $to : "$label\n<size:9>[$techn]</size>"
+!endprocedure

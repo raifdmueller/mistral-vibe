@@ -1,0 +1,78 @@
+= Product Requirements Document — Mistral Vibe
+:toc: left
+:sectnums:
+:revnumber: recovered from source v2.9.6
+
+This PRD is recovered from the Mistral Vibe source code (Phase 2 of Socratic
+Code-Theory Recovery). Claims that need stakeholder confirmation are marked
+`[OPEN — see Q-X.Y]` and trace to `OPEN_QUESTIONS.adoc`.
+
+== Problem
+
+Developers work with codebases from the terminal and want an assistant that can
+read, search, edit, and run code through natural language, without leaving the
+shell or trusting a closed cloud service. Mistral Vibe answers that need with an
+open-source CLI agent powered by Mistral's models.
+
+The deeper business motivation — why Mistral invests in a CLI assistant and how
+it positions against competing tools — is `[OPEN — see Q1.4]`.
+
+== Goals
+
+* Give developers a conversational, tool-using agent over their codebase, in the
+terminal (`README.md:20-22`).
+* Keep the developer in control: actions that touch the machine are gated by a
+permission system and a trust-folder gate.
+* Be extensible: skills, subagents, MCP servers, and connectors add capability
+without forking the tool.
+* Support both interactive use and scripted/programmatic use, plus an ACP bridge
+for IDE integration.
+* The success metric that ranks these goals is `[OPEN — see Q1.5]`.
+
+== Personas
+
+The code names actor *roles*, not personas with goals and skill levels.
+
+* *Developer* — primary actor; runs interactive and one-shot sessions.
+* *Automation Script* — drives `vibe -p` non-interactively in CI or pipelines.
+* *IDE / ACP Client* — connects to `vibe-acp` to embed the agent in an editor.
+
+A richer persona breakdown is `[OPEN — see Q1.2.1]`.
+
+== Success Criteria
+
+Telemetry is collected (`vibe/core/telemetry/`), so success is measured, but the
+defining metric is `[OPEN — see Q1.5]`. Segment priority across individual,
+team, and CI users is `[OPEN — see Q1.6]`.
+
+== Scope
+
+=== In scope (recovered from code)
+
+* Interactive coding sessions and one-shot prompts (UC-001, UC-002).
+* Session resume, rewind, and conversation-context management
+(UC-003, UC-004).
+* Model and agent switching; configuration via layered `config.toml`
+(UC-005, UC-006).
+* Authentication and first-run setup; trust-folder gate
+(UC-007, UC-011).
+* Tool permissioning (UC-008).
+* Extensibility: MCP servers, connectors, skills, subagents
+(UC-009, UC-010).
+* Voice input and reply narration (UC-012, experimental).
+* ACP server for IDEs (UC-013).
+* Teleport a session to the Vibe Code cloud (UC-014, behind a hidden flag).
+* Scheduled recurring prompts (UC-015).
+
+Full use-case detail lives in `docs/use_cases/UC-001` … `UC-015`.
+
+=== Out of scope
+
+* No relational database; no multi-user server deployment
+(`docs/entity_model.md:1-8`).
+* Windows is supported best-effort, not targeted (`README.md:24-25`).
+
+=== Quality priority
+
+Code signals point to Maintainability and Security as the strongest quality
+goals, but the authoritative ranking is `[OPEN — see Q4.9]`.
