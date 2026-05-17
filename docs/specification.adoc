@@ -1,0 +1,178 @@
+= Specification — Mistral Vibe
+:toc: left
+:toclevels: 3
+
+_Synthesized in Phase 2 of Socratic Code-Theory Recovery from the answered
+leaves of `QUESTION_TREE.adoc` under Q2._
+
+[NOTE]
+====
+Code-derived claims cite `file:line`. This document assembles the
+specification from artifacts produced earlier and adds the technical
+interface specifications and acceptance criteria. It does not restate the
+fifteen persona use cases — those live in full Cockburn form in
+`docs/use_cases/`.
+====
+
+== Actors
+
+[cols="1,1,3",options="header"]
+|===
+| Actor | Kind | Source
+| Developer | Primary, human | `vibe/cli/entrypoint.py:19-119`
+| Automation | Primary, system | `vibe/cli/entrypoint.py:42-49`, `action.yml`
+| IDE Client | Primary, system | `vibe/acp/entrypoint.py:30-37`
+| LLM Provider | Supporting, external | `vibe/core/llm/backend/factory.py:7`
+| MCP Server | Supporting, external | `vibe/core/tools/mcp/`
+| Vibe Code Cloud | Supporting, external | `vibe/core/teleport/`
+|===
+
+== Persona Use Cases
+
+The fifteen user-goal use cases are specified in Cockburn fully-dressed form
+in `docs/use_cases/UC-001-*.md` … `UC-015-*.md`, with the overview diagram in
+`docs/use_cases.puml`. They carry 37 business rules (BR-001 … BR-037).
+
+== System Use Case — `vibe` CLI
+
+Primary actor:: Developer (interactive) or Automation (with `-p`).
+Trigger:: The actor runs the `vibe` executable (`pyproject.toml` console
+script `vibe = "vibe.cli.entrypoint:main"`).
+
+=== Input and validation
+
+[cols="2,3,2",options="header"]
+|===
+| Argument | Meaning | Validation
+| `PROMPT` (positional) | Initial prompt for an interactive session | Optional
+| `-p, --prompt [TEXT]` | Run programmatic mode and exit | Optional; presence selects non-interactive mode (`vibe/cli/entrypoint.py:42-49`)
+| `--max-turns N` | Cap on assistant turns | Programmatic mode only (`vibe/core/middleware.py:49`)
+| `--max-price DOLLARS` | Cap on cost | Programmatic mode only (`vibe/core/middleware.py:65`)
+| `--enabled-tools TOOL` | Enable specific tools | Exact name, glob, or `re:` prefix; repeatable
+| `--output {text,json,streaming}` | Programmatic output format | Default `text` (`vibe/cli/entrypoint.py:73-81`)
+| `--agent NAME` | Agent mode | Builtin or custom TOML; defaults differ by mode (`vibe/cli/cli.py::get_initial_agent_name`)
+| `--setup` | Configure API key and exit | Flag
+| `--workdir DIR` | Change directory before running | Must exist and be a directory (`vibe/cli/entrypoint.py:150-158`)
+| `--trust` | Trust the working directory for this run only | Flag (`vibe/core/trusted_folders.py::trust_for_session`)
+| `-c, --continue` | Resume the most recent session | Mutually exclusive with `--resume`
+| `--resume [SESSION_ID]` | Resume a session, or show a picker | Mutually exclusive with `-c`
+| `-v, --version` | Print version and exit | Flag
+|===
+
+Environment variables: `VIBE_HOME`, `LOG_LEVEL`, `LOG_MAX_BYTES`, and any
+`VIBE_*` override of a config field (`vibe/cli/entrypoint.py:22-29`).
+
+=== Processing
+
+. Resolve and validate the working directory; change into it.
+. Resolve the trust decision for the directory (interactive mode only).
+. Load layered configuration; run onboarding if no API key is available.
+. Start either the interactive Textual UI or the programmatic run.
+
+=== Output and status codes
+
+* Interactive mode: a Textual TUI session; exit code `0` on clean exit.
+* Programmatic mode: the result on stdout in the requested format; exit code
+  `0` on success, non-zero on error with a message on stderr
+  (`vibe/cli/cli.py::load_config_or_exit`).
+
+=== Error responses
+
+* Missing working directory → message, exit `1` (`vibe/cli/entrypoint.py:150-158`).
+* Missing API key, non-interactive → instructions on stderr, exit `1`.
+* Invalid system prompt id → warning (`vibe/cli/cli.py`, `MissingPromptFileError`).
+
+== System Use Case — `vibe-acp` (ACP bridge)
+
+Primary actor:: IDE Client.
+Trigger:: The IDE Client launches the `vibe-acp` executable
+(`pyproject.toml` console script `vibe-acp = "vibe.acp.entrypoint:main"`).
+
+* *Input:* JSON-RPC messages over stdio, line-buffered
+  (`vibe/acp/entrypoint.py:20-22`); `--setup` flag for first-run setup.
+* *Processing:* Bootstrap config and history files
+  (`vibe/acp/entrypoint.py::bootstrap_config_files`), then serve the ACP
+  session loop (`vibe/acp/acp_agent_loop.py`).
+* *Output:* ACP session updates — text, tool calls, command results.
+* *Commands advertised:* help, compact, reload, log, proxy-setup, leanstall,
+  unleanstall, data-retention (`vibe/acp/commands/registry.py:44-89`).
+
+== Interactive Slash Commands
+
+Within an interactive session, slash commands trigger local use cases rather
+than LLM turns. The registry defines: `/help`, `/config`, `/model`,
+`/thinking`, `/reload`, `/clear`, `/copy`, `/log`, `/debug`, `/compact`,
+`/exit`, `/status`, `/teleport`, `/proxy-setup`, `/resume` (`/continue`),
+`/rename`, `/mcp` (`/connectors`), `/voice`, `/leanstall`, `/unleanstall`,
+`/rewind`, `/loop`, `/data-retention` (`vibe/cli/commands.py:53-176`).
+
+== Entity Model
+
+The persistent data model — eleven entities recovered from the configuration
+schema and session records — is specified in `docs/entity_model.md` with a
+Mermaid ER diagram and AIUP-vocabulary attribute tables.
+
+== Acceptance Criteria (Gherkin)
+
+Criteria trace to their use case. The behaviours below are observable in code
+and exercised by the test suite (`tests/`, 228 test files).
+
+[source,gherkin]
+----
+# UC-001 Start an Interactive Coding Session
+Feature: Trust gate on session start
+
+  Scenario: Untrusted directory with behaviour files prompts for trust
+    Given a working directory that contains an AGENTS.md file
+    And no recorded trust decision for that directory
+    When the developer starts vibe interactively
+    Then the system asks whether to trust the directory
+
+  Scenario: The home directory is never gated
+    Given the working directory is the user's home directory
+    When the developer starts vibe interactively
+    Then the system does not ask whether to trust the directory
+
+# UC-004 Review and Approve Tool Actions
+Feature: Tool action approval
+
+  Scenario: A file-changing action waits for approval
+    Given an interactive session under an agent mode that does not bypass permissions
+    When the agent requests to edit a file
+    Then the system pauses the turn and shows the proposed change
+    And the action runs only after the developer approves it
+
+  Scenario: Auto-approve mode runs actions without prompting
+    Given an interactive session under the auto-approve agent mode
+    When the agent requests to run a shell command
+    Then the system runs the command without prompting
+
+# UC-007 Manage Conversation Context
+Feature: Automatic compaction
+
+  Scenario: Crossing the auto-compact threshold compacts the conversation
+    Given an interactive session whose token usage is below the model threshold
+    When a turn pushes token usage past the model's auto-compact threshold
+    Then the system compacts the conversation before continuing
+
+# UC-014 Run the Agent Non-Interactively
+Feature: Programmatic run limits
+
+  Scenario: A run stops at the turn limit
+    Given a programmatic run started with a maximum number of turns
+    When the agent reaches that number of turns
+    Then the system stops and reports the result produced so far
+
+  Scenario: A run stops at the cost limit
+    Given a programmatic run started with a maximum cost
+    When the run's cost exceeds that limit
+    Then the system interrupts the run and reports the result produced so far
+----
+
+== Open Questions Carried Forward
+
+[cols="1,3,1",options="header"]
+|===
+| Q-ID | Question | Ask role
+| Q2.10 | Deliberate out-of-scope boundaries | Product Owner
+|===

@@ -1,0 +1,135 @@
+= Product Requirements Document — Mistral Vibe
+:toc: left
+:toclevels: 3
+
+_Synthesized in Phase 2 of Socratic Code-Theory Recovery from the answered
+leaves of `QUESTION_TREE.adoc` under Q1._
+
+[NOTE]
+====
+Every factual claim carries its source. Code-derived claims cite `file:line`.
+Claims that would need stakeholder input are *not guessed* — they appear as
+*Open Question* boxes that carry the original Q-ID forward. Phase 2 was run
+with no team answers available, so all Phase 1 open questions remain open.
+====
+
+== Problem
+
+Developers work with their codebase from the terminal but switch to other
+tools to get AI assistance. Mistral Vibe removes that switch: it is a
+command-line coding assistant that gives a conversational, natural-language
+interface to a codebase, so a developer can explore and modify a project
+through a set of tools without leaving the shell (`README.md:21-23`).
+
+== Personas
+
+The code exposes three distinct user roles through its entry points.
+
+Interactive Developer::
+Runs `vibe` in a terminal and works with the agent through a Textual TUI,
+optionally passing a starting prompt and working directory
+(`vibe/cli/entrypoint.py:19-119`).
+
+Automation / Script::
+Runs `vibe -p` (programmatic mode): one prompt, all tools auto-approved,
+result on stdout, then exit. Used in CI through the bundled GitHub Action
+(`vibe/cli/entrypoint.py:42-49`, `action.yml`).
+
+IDE Integrator::
+Drives Mistral Vibe from an editor over the Agent Client Protocol by running
+`vibe-acp` (`vibe/acp/entrypoint.py:30-37`). A Zed extension ships in
+`distribution/zed/`.
+
+== Goals
+
+[IMPORTANT]
+.Open Question — Q1.4
+====
+*Why does Mistral fund and open-source Mistral Vibe?* The product's business
+goal (drive Mistral API consumption, grow developer adoption, serve as a
+reference client, or another reason) cannot be derived from code. *Ask:
+Product Owner.*
+====
+
+[IMPORTANT]
+.Open Question — Q1.5
+====
+*What does success look like, and how is it measured?* Telemetry is collected
+(`vibe/core/telemetry/send.py`) but the success metrics the product is judged
+against are not stated in code. *Ask: Product Owner.*
+====
+
+== Success Criteria
+
+Not derivable from code — see Open Question Q1.5 above. No measurable success
+criteria are documented in the repository.
+
+== Scope
+
+=== In scope (observed in code)
+
+The product delivers fifteen user-facing capabilities, fully specified in
+`docs/use_cases/` (UC-001 … UC-015) and summarized in `docs/use_cases.puml`:
+
+* Interactive coding sessions with an LLM-backed agent and a tool set
+  (`vibe/core/agent_loop.py:221`).
+* Authentication via API key or browser sign-in
+  (`vibe/setup/auth/browser_sign_in.py`).
+* Agent modes from read-only planning to fully auto-approved execution
+  (`vibe/core/agents/models.py:108-188`).
+* Session persistence, resume, rename, compaction, and rewind
+  (`vibe/core/session/`, `vibe/core/rewind/`).
+* Extension via MCP servers, connectors, skills, and hooks
+  (`vibe/core/tools/mcp/`, `vibe/core/skills/`, `vibe/core/hooks/`).
+* Non-interactive programmatic mode and ACP-based IDE integration
+  (`vibe/core/programmatic.py`, `vibe/acp/`).
+* Voice input and spoken narration; teleport to Vibe Code Cloud
+  (`vibe/core/transcribe/`, `vibe/core/tts/`, `vibe/core/teleport/`).
+
+=== Out of scope
+
+[IMPORTANT]
+.Open Question — Q2.10
+====
+*What was consciously decided to be out of scope* (for example a web UI,
+multi-user collaboration, or first-class hosting of non-Mistral models)?
+The code shows what is built, not what was deliberately excluded.
+*Ask: Product Owner.*
+====
+
+== Prioritization Conflicts
+
+[IMPORTANT]
+.Open Question — Q1.6
+====
+*When the needs of interactive developers, automation callers, and IDE
+integrators conflict, which segment takes priority?* All three are served;
+the code does not reveal the tie-breaker. *Ask: Product Owner.*
+====
+
+== Constraints
+
+* Supported platform is UNIX; Windows is best-effort, not a target
+  (`README.md:25-26`).
+* Python ≥ 3.12, `uv`-managed (`pyproject.toml`, `.python-version`).
+* Licensed Apache-2.0 (`LICENSE`).
+
+[IMPORTANT]
+.Open Question — Q3.2.1
+====
+*What organizational or regulatory constraints apply* beyond the Apache-2.0
+license — data-handling requirements, release-cadence or support commitments?
+*Ask: Product Owner.*
+====
+
+== Open Questions Carried Forward
+
+[cols="1,3,1",options="header"]
+|===
+| Q-ID | Question | Ask role
+| Q1.4 | Business motivation for the product | Product Owner
+| Q1.5 | Definition and measurement of success | Product Owner
+| Q1.6 | Priority among user segments on conflict | Product Owner
+| Q2.10 | Deliberate out-of-scope boundaries | Product Owner
+| Q3.2.1 | Organizational / regulatory constraints | Product Owner
+|===

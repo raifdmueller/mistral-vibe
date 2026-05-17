@@ -1,0 +1,50 @@
+@startuml Use Cases Overview
+left to right direction
+
+actor "Developer" as developer
+actor "Automation" as automation
+actor "IDE Client" as ide
+actor "LLM Provider" as provider
+actor "MCP Server" as mcp
+actor "Vibe Code Cloud" as cloud
+
+rectangle "Mistral Vibe" {
+    usecase "UC-001\nStart an Interactive Coding Session" as UC001
+    usecase "UC-002\nAuthenticate with the Mistral Platform" as UC002
+    usecase "UC-003\nCollaborate with the Coding Agent" as UC003
+    usecase "UC-004\nReview and Approve Tool Actions" as UC004
+    usecase "UC-005\nSelect an Agent Mode" as UC005
+    usecase "UC-006\nResume a Previous Session" as UC006
+    usecase "UC-007\nManage Conversation Context" as UC007
+    usecase "UC-008\nConfigure Vibe" as UC008
+    usecase "UC-009\nConnect MCP Servers and Connectors" as UC009
+    usecase "UC-010\nInvoke a Skill" as UC010
+    usecase "UC-011\nSchedule a Recurring Prompt" as UC011
+    usecase "UC-012\nUse Voice Input and Spoken Narration" as UC012
+    usecase "UC-013\nTeleport a Session to Vibe Code" as UC013
+    usecase "UC-014\nRun the Agent Non-Interactively" as UC014
+    usecase "UC-015\nDrive Vibe from an IDE" as UC015
+}
+
+developer --> UC001
+developer --> UC002
+developer --> UC003
+developer --> UC004
+developer --> UC005
+developer --> UC006
+developer --> UC007
+developer --> UC008
+developer --> UC009
+developer --> UC010
+developer --> UC011
+developer --> UC012
+developer --> UC013
+automation --> UC014
+ide --> UC015
+
+UC003 --> provider
+UC014 --> provider
+UC009 --> mcp
+UC013 --> cloud
+
+@enduml

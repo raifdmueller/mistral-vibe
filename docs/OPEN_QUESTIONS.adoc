@@ -1,0 +1,94 @@
+= Open Questions — Socratic Code-Theory Recovery
+:toc: left
+
+This is the Phase 1 handoff document. It lists only the `[OPEN]` leaves from
+`QUESTION_TREE.adoc` — the facts that *cannot* be derived from code alone.
+Route each group to the named role. Answers should be 1–3 sentences; they feed
+Phase 2 (documentation synthesis), where each becomes a claim marked
+`(team answer)`.
+
+13 questions, grouped by Ask role.
+
+== For the Product Owner
+
+[cols="1,4",options="header"]
+|===
+| Q-ID | Question
+
+| Q1.4
+| Why does Mistral fund and open-source Mistral Vibe? Is the goal to drive
+  Mistral API consumption, grow developer adoption, serve as a reference
+  client, or something else? (Category: business-context)
+
+| Q1.5
+| What does success look like, and how is it measured — which adoption,
+  retention, or conversion metrics is the product judged against?
+  (Category: business-context)
+
+| Q1.6
+| When the needs of interactive developers, automation callers, and IDE
+  integrators conflict, which user segment takes priority?
+  (Category: stakeholder-context)
+
+| Q2.10
+| What was consciously decided to be *out of scope* — for example a web UI,
+  multi-user collaboration, or first-class hosting of non-Mistral models?
+  (Category: business-context)
+
+| Q3.2.1
+| What organizational or regulatory constraints apply beyond the Apache-2.0
+  license — data-handling requirements, release-cadence commitments, support
+  obligations? (Category: stakeholder-context)
+|===
+
+== For the Architect
+
+[cols="1,4",options="header"]
+|===
+| Q-ID | Question
+
+| Q3.4.1
+| Why was the four-module layering (`core` / `cli` / `acp` / `setup`) chosen?
+  Was sharing one engine across a CLI and an ACP front-end the driving
+  reason? (Category: design-rationale)
+
+| Q3.9.1.R
+| Why was Textual chosen for the TUI rather than prompt_toolkit, a Rich-only
+  interface, or a web UI? (Category: design-rationale)
+
+| Q3.9.3.R
+| Why does configuration use per-field merge strategies (replace, concat,
+  union, shallow, conflict) instead of simple layer override? Which concrete
+  config conflicts justified that complexity? (Category: design-rationale)
+
+| Q3.9.6.R
+| Why are sessions persisted as flat `meta.json` + `messages.jsonl` files
+  rather than an embedded database such as SQLite — portability,
+  human-readability, simplicity? (Category: design-rationale)
+
+| Q3.10.1
+| What are the prioritized, measurable quality targets — for example a
+  startup-latency budget, a token-throughput goal, or a crash-rate ceiling?
+  (Category: quality-goals)
+
+| Q4.9
+| Which ISO 25010 quality characteristic dominates when two conflict — e.g.
+  does TUI responsiveness beat feature breadth, or does security gating beat
+  convenience? (Category: quality-goals)
+
+| Q5.6
+| Is there a deprecation or debt-reduction roadmap — which subsystems are
+  considered legacy or scheduled for replacement? (Category: future-direction)
+|===
+
+== For Operations
+
+[cols="1,4",options="header"]
+|===
+| Q-ID | Question
+
+| Q5.5
+| What is the accepted risk posture for external dependencies — expected SLAs,
+  intended behaviour when the Mistral API is unreachable, and handling of
+  telemetry-endpoint downtime? (Category: future-direction)
+|===
