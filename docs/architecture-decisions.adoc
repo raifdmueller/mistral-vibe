@@ -1,0 +1,226 @@
+= Architecture Decisions — Mistral Vibe
+:toc: left
+:toclevels: 2
+
+_Synthesized in Phase 2 of Socratic Code-Theory Recovery from the answered
+leaves of `QUESTION_TREE.adoc` under Q3.9 and Q3.4._
+
+[NOTE]
+====
+These decisions are *recovered from code*, not from decision records. The
+_decision_ itself is observable; the _rationale_ behind it could not be
+confirmed. Therefore every ADR has the status *Accepted (inferred)*, and Pugh
+matrix cells that need team judgment are marked `?` rather than guessed
+(per the project's documentation contract). Pugh scoring is 3-point
+(`-1` / `0` / `+1`) against the chosen option as baseline (`0`).
+====
+
+== ADR-001 — Textual for the interactive terminal UI
+
+Context::
+The interactive front-end needs a rich terminal interface — streaming output,
+input history, autocompletion, dialogs.
+
+Decision::
+The TUI is built on the Textual framework (`textual==8.2.4` in
+`pyproject.toml`; `vibe/cli/textual_ui/`).
+
+Status:: Accepted (inferred).
+
+Consequences::
+* Rich widget model and a snapshot-testable UI (`pytest-textual-snapshot` in
+  dev dependencies).
+* A hard dependency on a fast-moving framework, pinned exactly; a
+  `textual-speedups` dependency is needed for performance.
+
+[cols="3,1,1,1",options="header"]
+|===
+| Criterion | Textual (chosen) | prompt_toolkit | Web UI
+| Rich interactive widgets | 0 | -1 | +1
+| Terminal-native, no browser | 0 | 0 | -1
+| Snapshot-testable UI | 0 | -1 | 0
+| Implementation effort | 0 | `?` | `?`
+| Fit for product goals | 0 | `?` | `?`
+|===
+
+_Open Question Q3.9.1.R: why Textual over the alternatives. Ask: Architect._
+
+== ADR-002 — Modular monolith with a shared core and two front-ends
+
+Context::
+The product is delivered as both an interactive CLI and an IDE integration.
+Both need the same agent behaviour.
+
+Decision::
+A layered modular monolith: `vibe/core` is the engine, `vibe/cli` and
+`vibe/acp` are front-ends over it, `vibe/setup` holds first-run wizards
+(`AGENTS.md:5`).
+
+Status:: Accepted (inferred).
+
+Consequences::
+* Agent logic is written once and shared by both front-ends.
+* The whole product ships and versions as one unit; front-ends cannot be
+  released independently.
+
+[cols="3,1,1,1",options="header"]
+|===
+| Criterion | Shared core (chosen) | Duplicated per front-end | Separate services
+| Behaviour consistency across front-ends | 0 | -1 | 0
+| Deployment simplicity | 0 | 0 | -1
+| Independent release of front-ends | 0 | +1 | +1
+| Fit for product goals | 0 | `?` | `?`
+|===
+
+_Open Question Q3.4.1: why this layering was chosen. Ask: Architect._
+
+== ADR-003 — Agent Client Protocol for IDE integration
+
+Context::
+Editors need to use Mistral Vibe as their coding agent.
+
+Decision::
+IDE integration goes through the Agent Client Protocol via the `vibe-acp`
+entry point (`agent-client-protocol==0.9.0`; `vibe/acp/`).
+
+Status:: Accepted (inferred).
+
+Consequences::
+* Any ACP-speaking editor can integrate without bespoke glue (a Zed extension
+  ships in `distribution/zed/`).
+* The product is bound to the ACP specification and its version cadence.
+
+[cols="3,1,1,1",options="header"]
+|===
+| Criterion | ACP (chosen) | Per-editor plugins | Custom protocol
+| Editor reach per unit of effort | 0 | -1 | 0
+| Control over the protocol | 0 | 0 | +1
+| Maintenance burden | 0 | -1 | -1
+| Fit for product goals | 0 | `?` | `?`
+|===
+
+== ADR-004 — Layered configuration with per-field merge strategies
+
+Context::
+Settings come from built-in defaults, the user, and the project, and must
+combine predictably — including for list and dict fields.
+
+Decision::
+Configuration is composed from layers, each field carrying an explicit merge
+strategy (replace, concat, union, shallow, conflict). Untrusted project layers
+are rejected (`vibe/core/config/schema.py:104-138`;
+`vibe/core/config/layer.py:25-88`).
+
+Status:: Accepted (inferred).
+
+Consequences::
+* Predictable, field-level merge behaviour and a security boundary at the
+  project layer.
+* More schema machinery than a flat override scheme; every field must declare
+  its strategy (`vibe/core/config/schema.py:54-66`).
+
+[cols="3,1,1",options="header"]
+|===
+| Criterion | Per-field merge (chosen) | Simple layer override
+| Predictable list/dict merging | 0 | -1
+| Schema simplicity | 0 | +1
+| Security boundary on untrusted layers | 0 | `?`
+| Fit for real config conflicts | 0 | `?`
+|===
+
+_Open Question Q3.9.3.R: which real config conflicts justified the
+complexity. Ask: Architect._
+
+== ADR-005 — Pluggable LLM backends behind a factory
+
+Context::
+The agent must work with Mistral models and with OpenAI-style endpoints
+(including local servers).
+
+Decision::
+Backends are selected by a factory keyed on a `Backend` enum
+(`vibe/core/llm/backend/factory.py:7`); Mistral, generic, Anthropic, Vertex,
+and OpenAI-responses adapters exist in `vibe/core/llm/backend/`.
+
+Status:: Accepted (inferred).
+
+Consequences::
+* New providers are added without touching the agent loop.
+* Each backend must be kept in step with its provider's API.
+
+[cols="3,1,1",options="header"]
+|===
+| Criterion | Backend factory (chosen) | Single hardcoded backend
+| Provider independence | 0 | -1
+| Code paths to maintain | 0 | +1
+| Fit for product goals | 0 | `?`
+|===
+
+== ADR-006 — Hexagonal ports and adapters for external integrations
+
+Context::
+Several features depend on external systems — voice transcription, text to
+speech, update checks, plan lookups, notifications.
+
+Decision::
+Such integrations are defined as abstract ports (`_port.py` suffix) with
+concrete adapters alongside (`AGENTS.md:21`;
+`vibe/cli/plan_offer/ports/whoami_gateway.py` and `.../adapters/`).
+
+Status:: Accepted (inferred).
+
+Consequences::
+* External systems are swappable and easy to fake in tests (`tests/stubs/`).
+* Extra indirection for every integrated capability.
+
+[cols="3,1,1",options="header"]
+|===
+| Criterion | Ports/adapters (chosen) | Direct calls
+| Testability with fakes | 0 | -1
+| Swappable implementations | 0 | -1
+| Code directness | 0 | +1
+| Fit for product goals | 0 | `?`
+|===
+
+== ADR-007 — Flat-file session persistence
+
+Context::
+Sessions — conversation history and metadata — must survive between runs and
+be resumable.
+
+Decision::
+Each session is a directory holding `meta.json` and a `messages.jsonl`
+journal; a migration step upgrades older formats at startup
+(`vibe/core/session/session_loader.py:16-17`;
+`vibe/core/session/session_migration.py`).
+
+Status:: Accepted (inferred).
+
+Consequences::
+* No database dependency; sessions are human-readable and easy to inspect.
+* Queries across sessions require scanning directories
+  (`vibe/core/session/session_loader.py::list_sessions`); the format needs
+  migration code as it evolves.
+
+[cols="3,1,1",options="header"]
+|===
+| Criterion | Flat files (chosen) | Embedded database (SQLite)
+| Zero extra dependency | 0 | -1
+| Human-readable / inspectable | 0 | -1
+| Cross-session query performance | 0 | +1
+| Fit for product goals | 0 | `?`
+|===
+
+_Open Question Q3.9.6.R: why flat files over an embedded database.
+Ask: Architect._
+
+== Open Questions Carried Forward
+
+[cols="1,3,1",options="header"]
+|===
+| Q-ID | Question | Ask role
+| Q3.4.1 | Rationale for the modular-monolith layering | Architect
+| Q3.9.1.R | Rationale for choosing Textual | Architect
+| Q3.9.3.R | Rationale for per-field config merge strategies | Architect
+| Q3.9.6.R | Rationale for flat-file session persistence | Architect
+|===
